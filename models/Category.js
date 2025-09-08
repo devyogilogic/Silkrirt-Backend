@@ -36,6 +36,12 @@ const categorySchema = new mongoose.Schema({
         required: [true, 'Photo URL is required'],
         trim: true
     },
+    photoAlt: {
+        type: String,
+       
+        trim: true,
+        maxlength: [125, 'Photo alt text cannot exceed 125 characters']
+    },
     categoryOption: {
         type: String,
         required: [true, 'Category option is required'],

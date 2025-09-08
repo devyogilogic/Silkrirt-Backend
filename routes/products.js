@@ -1,9 +1,7 @@
 const express = require('express');
 const { body, param, query } = require('express-validator');
-const Product = require('../models/Product');
-const Category = require('../models/Category');
 const { authenticateToken, requireAdmin } = require('../middleware/auth');
-const { uploadMultiple, deleteFiles } = require('../middleware/upload');
+const { uploadMultiple } = require('../middleware/upload');
 const {
     handleValidationErrors,
     isValidObjectId,
@@ -12,6 +10,17 @@ const {
     isValidImageUrls,
     isValidProductCategories
 } = require('../middleware/validation');
+const {
+    getProducts,
+    getActiveProducts,
+    getFeaturedProducts,
+    getProductsByCategory,
+    getProductById,
+    createProduct,
+    updateProduct,
+    updateProductImages,
+    deleteProduct
+} = require('../controllers/productController');
 
 const router = express.Router();
 
@@ -27,116 +36,17 @@ router.get('/', [
     query('featured').optional().isBoolean().withMessage('Featured must be a boolean'),
     query('active').optional().isBoolean().withMessage('Active must be a boolean'),
     handleValidationErrors
-], async (req, res) => {
-    try {
-        const page = parseInt(req.query.page) || 1;
-        const limit = parseInt(req.query.limit) || 10;
-        const skip = (page - 1) * limit;
-
-        const { search, category, featured, active } = req.query;
-
-        // Build query
-        let query = {};
-
-        if (search) {
-            query = {
-                $or: [
-                    { productTitle: { $regex: search, $options: 'i' } },
-                    { shortDescription: { $regex: search, $options: 'i' } },
-                    { productTags: { $regex: search, $options: 'i' } },
-                    { sku: { $regex: search, $options: 'i' } }
-                ]
-            };
-        }
-
-        if (category) {
-            query.productCategories = category;
-        }
-
-        if (featured !== undefined) {
-            query.isFeatured = featured === 'true';
-        }
-
-        if (active !== undefined) {
-            query.isActive = active === 'true';
-        }
-
-        // Execute query with pagination and populate categories
-        const products = await Product.find(query)
-            .populate('productCategories', 'collectionName collectionTitle')
-            .sort({ createdAt: -1 })
-            .skip(skip)
-            .limit(limit);
-
-        // Get total count for pagination
-        const total = await Product.countDocuments(query);
-
-        res.json({
-            success: true,
-            data: {
-                products,
-                pagination: {
-                    page,
-                    limit,
-                    total,
-                    pages: Math.ceil(total / limit),
-                    hasNext: page * limit < total,
-                    hasPrev: page > 1
-                }
-            }
-        });
-    } catch (error) {
-        console.error('Get products error:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Failed to get products'
-        });
-    }
-});
+], getProducts);
 
 // @route   GET /api/products/active
 // @desc    Get all active products (for frontend use)
 // @access  Public
-router.get('/active', async (req, res) => {
-    try {
-        const products = await Product.getActiveProducts();
-
-        res.json({
-            success: true,
-            data: {
-                products
-            }
-        });
-    } catch (error) {
-        console.error('Get active products error:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Failed to get active products'
-        });
-    }
-});
+router.get('/active', getActiveProducts);
 
 // @route   GET /api/products/featured
 // @desc    Get featured products
 // @access  Public
-router.get('/featured', async (req, res) => {
-    try {
-        const products = await Product.getFeaturedProducts();
-
-        res.json({
-            success: true,
-            data: {
-                products
-            }
-        });
-    } catch (error) {
-        console.error('Get featured products error:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Failed to get featured products'
-        });
-    }
-});
+router.get('/featured', getFeaturedProducts);
 
 // @route   GET /api/products/category/:categoryId
 // @desc    Get products by category
@@ -144,24 +54,7 @@ router.get('/featured', async (req, res) => {
 router.get('/category/:categoryId', [
     param('categoryId').custom(isValidObjectId).withMessage('Invalid category ID'),
     handleValidationErrors
-], async (req, res) => {
-    try {
-        const products = await Product.getByCategory(req.params.categoryId);
-
-        res.json({
-            success: true,
-            data: {
-                products
-            }
-        });
-    } catch (error) {
-        console.error('Get products by category error:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Failed to get products by category'
-        });
-    }
-});
+], getProductsByCategory);
 
 // @route   GET /api/products/:id
 // @desc    Get product by ID
@@ -170,32 +63,7 @@ router.get('/:id', [
     authenticateToken,
     param('id').custom(isValidObjectId).withMessage('Invalid product ID'),
     handleValidationErrors
-], async (req, res) => {
-    try {
-        const product = await Product.findById(req.params.id)
-            .populate('productCategories', 'collectionName collectionTitle');
-
-        if (!product) {
-            return res.status(404).json({
-                success: false,
-                message: 'Product not found'
-            });
-        }
-
-        res.json({
-            success: true,
-            data: {
-                product
-            }
-        });
-    } catch (error) {
-        console.error('Get product error:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Failed to get product'
-        });
-    }
-});
+], getProductById);
 
 // @route   POST /api/products
 // @desc    Create new product
@@ -231,102 +99,13 @@ router.post('/', [
     body('productTags')
         .notEmpty().withMessage('Product tags are required')
         .isLength({ max: 500 }).withMessage('Product tags cannot exceed 500 characters'),
-    body('productCategories')
-        .notEmpty().withMessage('Product categories are required')
-        .custom(isValidProductCategories).withMessage('Invalid product categories'),
+  
+   
     body('isFeatured')
         .optional()
         .isBoolean().withMessage('isFeatured must be a boolean'),
     handleValidationErrors
-], async (req, res) => {
-    try {
-        const {
-            sku,
-            productTitle,
-            shortDescription,
-            fullDescription,
-            keyFeatures,
-            specificationsTable,
-            seoMetaTitle,
-            seoMetaDescription,
-            productTags,
-            productCategories,
-            isFeatured = false
-        } = req.body;
-
-        // Check if SKU already exists
-        const existingProduct = await Product.skuExists(sku);
-        if (existingProduct) {
-            // Delete uploaded files if product already exists
-            if (req.fileUrls) {
-                deleteFiles(req.fileUrls);
-            }
-
-            return res.status(400).json({
-                success: false,
-                message: 'Product with this SKU already exists'
-            });
-        }
-
-        // Verify all categories exist
-        const categories = await Category.find({
-            _id: { $in: productCategories },
-            isActive: true
-        });
-
-        if (categories.length !== productCategories.length) {
-            // Delete uploaded files if categories don't exist
-            if (req.fileUrls) {
-                deleteFiles(req.fileUrls);
-            }
-
-            return res.status(400).json({
-                success: false,
-                message: 'One or more categories do not exist or are inactive'
-            });
-        }
-
-        // Create new product
-        const product = new Product({
-            sku: sku.toUpperCase(),
-            productTitle,
-            shortDescription,
-            fullDescription,
-            keyFeatures,
-            specificationsTable,
-            seoMetaTitle,
-            seoMetaDescription,
-            productTags,
-            productCategories,
-            productImageUrls: req.fileUrls,
-            isFeatured
-        });
-
-        await product.save();
-
-        // Populate categories for response
-        await product.populate('productCategories', 'collectionName collectionTitle');
-
-        res.status(201).json({
-            success: true,
-            message: 'Product created successfully',
-            data: {
-                product
-            }
-        });
-    } catch (error) {
-        // Delete uploaded files if error occurs
-        if (req.fileUrls) {
-            deleteFiles(req.fileUrls);
-        }
-
-        console.error('Create product error:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Failed to create product'
-        });
-    }
-});
+], createProduct);
 
 // @route   PUT /api/products/:id
 // @desc    Update product
@@ -365,6 +144,15 @@ router.put('/:id', [
     body('productCategories')
         .optional()
         .custom(isValidProductCategories).withMessage('Invalid product categories'),
+    body('productImageAlts')
+        .optional()
+        .isArray().withMessage('Product image alt texts must be an array')
+        .custom((value) => {
+            if (value.length > 5) {
+                throw new Error('Maximum 5 alt texts allowed');
+            }
+            return value.every(alt => typeof alt === 'string' && alt.length <= 125);
+        }).withMessage('Each alt text must be a string with max 125 characters'),
     body('isActive')
         .optional()
         .isBoolean().withMessage('isActive must be a boolean'),
@@ -372,69 +160,7 @@ router.put('/:id', [
         .optional()
         .isBoolean().withMessage('isFeatured must be a boolean'),
     handleValidationErrors
-], async (req, res) => {
-    try {
-        const product = await Product.findById(req.params.id);
-
-        if (!product) {
-            return res.status(404).json({
-                success: false,
-                message: 'Product not found'
-            });
-        }
-
-        // Check if SKU already exists (if being updated)
-        if (req.body.sku && req.body.sku.toUpperCase() !== product.sku) {
-            const existingProduct = await Product.skuExists(req.body.sku, req.params.id);
-            if (existingProduct) {
-                return res.status(400).json({
-                    success: false,
-                    message: 'Product with this SKU already exists'
-                });
-            }
-        }
-
-        // Verify categories exist (if being updated)
-        if (req.body.productCategories) {
-            const categories = await Category.find({
-                _id: { $in: req.body.productCategories },
-                isActive: true
-            });
-
-            if (categories.length !== req.body.productCategories.length) {
-                return res.status(400).json({
-                    success: false,
-                    message: 'One or more categories do not exist or are inactive'
-                });
-            }
-        }
-
-        // Update product
-        if (req.body.sku) {
-            req.body.sku = req.body.sku.toUpperCase();
-        }
-
-        Object.assign(product, req.body);
-        await product.save();
-
-        // Populate categories for response
-        await product.populate('productCategories', 'collectionName collectionTitle');
-
-        res.json({
-            success: true,
-            message: 'Product updated successfully',
-            data: {
-                product
-            }
-        });
-    } catch (error) {
-        console.error('Update product error:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Failed to update product'
-        });
-    }
-});
+], updateProduct);
 
 // @route   PUT /api/products/:id/images
 // @desc    Update product images
@@ -444,52 +170,17 @@ router.put('/:id/images', [
     requireAdmin,
     param('id').custom(isValidObjectId).withMessage('Invalid product ID'),
     uploadMultiple,
+    body('productImageAlts')
+        .optional()
+        .isArray().withMessage('Product image alt texts must be an array')
+        .custom((value) => {
+            if (value.length > 5) {
+                throw new Error('Maximum 5 alt texts allowed');
+            }
+            return value.every(alt => typeof alt === 'string' && alt.length <= 125);
+        }).withMessage('Each alt text must be a string with max 125 characters'),
     handleValidationErrors
-], async (req, res) => {
-    try {
-        const product = await Product.findById(req.params.id);
-
-        if (!product) {
-            // Delete uploaded files if product not found
-            if (req.fileUrls) {
-                deleteFiles(req.fileUrls);
-            }
-
-            return res.status(404).json({
-                success: false,
-                message: 'Product not found'
-            });
-        }
-
-        // Delete old images
-        if (product.productImageUrls && product.productImageUrls.length > 0) {
-            deleteFiles(product.productImageUrls);
-        }
-
-        // Update image URLs
-        product.productImageUrls = req.fileUrls;
-        await product.save();
-
-        res.json({
-            success: true,
-            message: 'Product images updated successfully',
-            data: {
-                product
-            }
-        });
-    } catch (error) {
-        // Delete uploaded files if error occurs
-        if (req.fileUrls) {
-            deleteFiles(req.fileUrls);
-        }
-
-        console.error('Update product images error:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Failed to update product images'
-        });
-    }
-});
+], updateProductImages);
 
 // @route   DELETE /api/products/:id
 // @desc    Delete product
@@ -499,36 +190,6 @@ router.delete('/:id', [
     requireAdmin,
     param('id').custom(isValidObjectId).withMessage('Invalid product ID'),
     handleValidationErrors
-], async (req, res) => {
-    try {
-        const product = await Product.findById(req.params.id);
-
-        if (!product) {
-            return res.status(404).json({
-                success: false,
-                message: 'Product not found'
-            });
-        }
-
-        // Delete product images
-        if (product.productImageUrls && product.productImageUrls.length > 0) {
-            deleteFiles(product.productImageUrls);
-        }
-
-        // Delete product
-        await Product.findByIdAndDelete(req.params.id);
-
-        res.json({
-            success: true,
-            message: 'Product deleted successfully'
-        });
-    } catch (error) {
-        console.error('Delete product error:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Failed to delete product'
-        });
-    }
-});
+], deleteProduct);
 
 module.exports = router;

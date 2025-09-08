@@ -33,7 +33,8 @@ async function setupDatabase() {
                 metaDescription: 'Discover the latest electronics and tech products with amazing features.',
                 introParagraph: 'Explore our comprehensive collection of cutting-edge electronics, from smartphones to smart home devices. We offer the latest technology with competitive prices and excellent customer support.',
                 categoryOption: 'normal',
-                photoUrl: '/placeholder.svg?height=100&width=100'
+                photoUrl: '/placeholder.svg?height=100&width=100',
+                photoAlt: 'Electronics category showing modern tech devices and gadgets'
             },
             {
                 collectionName: 'Clothing',
@@ -42,7 +43,8 @@ async function setupDatabase() {
                 metaDescription: 'Shop the latest fashion trends and stylish clothing for all occasions.',
                 introParagraph: 'Stay ahead of fashion trends with our curated collection of clothing and accessories. From casual wear to formal attire, we have everything you need to express your unique style.',
                 categoryOption: 'normal',
-                photoUrl: '/placeholder.svg?height=100&width=100'
+                photoUrl: '/placeholder.svg?height=100&width=100',
+                photoAlt: 'Clothing category featuring trendy fashion items and stylish apparel'
             },
             {
                 collectionName: 'Home Decor',
@@ -51,7 +53,8 @@ async function setupDatabase() {
                 metaDescription: 'Transform your living space with our beautiful home decor items and furniture.',
                 introParagraph: 'Create the perfect ambiance in your home with our carefully selected decor items. From wall art to furniture, we help you turn your house into a beautiful, comfortable home.',
                 categoryOption: 'normal',
-                photoUrl: '/placeholder.svg?height=100&width=100'
+                photoUrl: '/placeholder.svg?height=100&width=100',
+                photoAlt: 'Home decor category displaying beautiful furniture and decorative items'
             },
             {
                 collectionName: 'Books',
@@ -60,7 +63,8 @@ async function setupDatabase() {
                 metaDescription: 'Explore our vast collection of books across all genres and interests.',
                 introParagraph: 'Dive into the world of literature with our extensive book collection. From bestsellers to classics, fiction to non-fiction, we have books for every reader and every mood.',
                 categoryOption: 'normal',
-                photoUrl: '/placeholder.svg?height=100&width=100'
+                photoUrl: '/placeholder.svg?height=100&width=100',
+                photoAlt: 'Books category showcasing various genres and literature collections'
             },
             {
                 collectionName: 'Gifts',
@@ -69,7 +73,8 @@ async function setupDatabase() {
                 metaDescription: 'Find the perfect gift for your loved ones with our thoughtful gift collection.',
                 introParagraph: 'Make every occasion special with our curated gift collection. From birthdays to anniversaries, we have thoughtful and unique gifts that will bring joy to your loved ones.',
                 categoryOption: 'gifting',
-                photoUrl: '/placeholder.svg?height=100&width=100'
+                photoUrl: '/placeholder.svg?height=100&width=100',
+                photoAlt: 'Gifts category featuring thoughtful presents and gift items'
             },
             {
                 collectionName: 'Accessories',
@@ -78,7 +83,8 @@ async function setupDatabase() {
                 metaDescription: 'Complete your look with our stylish accessories and fashion items.',
                 introParagraph: 'Add the perfect finishing touch to your outfit with our stylish accessories. From jewelry to bags, watches to sunglasses, we have everything you need to complete your look.',
                 categoryOption: 'normal',
-                photoUrl: '/placeholder.svg?height=100&width=100'
+                photoUrl: '/placeholder.svg?height=100&width=100',
+                photoAlt: 'Accessories category displaying stylish jewelry, bags, and fashion accessories'
             }
         ];
 
@@ -120,6 +126,7 @@ async function setupDatabase() {
                     productTags: 'audio, headphones, wireless, tech, music',
                     productCategories: [electronicsCategory._id],
                     productImageUrls: ['/placeholder.svg?height=100&width=100', '/placeholder.svg?height=100&width=100'],
+                    productImageAlts: ['Premium wireless headphones in black color', 'Wireless headphones showing comfort design and premium build'],
                     isFeatured: true
                 },
                 {
@@ -141,6 +148,7 @@ async function setupDatabase() {
                     productTags: 'clothing, t-shirt, graphic, casual, cotton',
                     productCategories: [clothingCategory._id],
                     productImageUrls: ['/placeholder.svg?height=100&width=100'],
+                    productImageAlts: ['Graphic print t-shirt in white color made from organic cotton'],
                     isFeatured: false
                 },
                 {
@@ -162,6 +170,7 @@ async function setupDatabase() {
                     productTags: 'books, fiction, novel, bestseller, matt-haig',
                     productCategories: [booksCategory._id],
                     productImageUrls: ['/placeholder.svg?height=100&width=100'],
+                    productImageAlts: ['The Midnight Library book cover by Matt Haig'],
                     isFeatured: true
                 }
             ];

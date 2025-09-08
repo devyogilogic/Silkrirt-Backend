@@ -81,6 +81,16 @@ const productSchema = new mongoose.Schema({
             message: 'Maximum 5 images allowed per product'
         }
     },
+    productImageAlts: {
+        type: [String],
+        required: [true, 'Alt text for all product images is required'],
+        validate: {
+            validator: function (v) {
+                return v.length <= 5 && v.every(alt => alt.length <= 125);
+            },
+            message: 'Maximum 5 alt texts allowed, each with max 125 characters'
+        }
+    },
     slug: {
         type: String,
         lowercase: true,

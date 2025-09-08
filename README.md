@@ -188,6 +188,7 @@ Content-Type: multipart/form-data
   "metaDescription": "Discover the latest electronics and tech products.",
   "introParagraph": "Explore our comprehensive collection...",
   "categoryOption": "normal",
+  "photoAlt": "Electronics category showing modern tech devices",
   "photo": [file]
 }
 ```
@@ -276,6 +277,7 @@ Content-Type: multipart/form-data
   "seoMetaDescription": "Shop premium wireless headphones...",
   "productTags": "audio, headphones, wireless, tech",
   "productCategories": ["categoryId1", "categoryId2"],
+  "productImageAlts": ["Premium wireless headphones in black", "Headphones showing comfort design"],
   "isFeatured": true,
   "images": [file1, file2, file3]
 }
@@ -303,6 +305,7 @@ Authorization: Bearer <token>
 Content-Type: multipart/form-data
 
 {
+  "productImageAlts": ["Image 1 description", "Image 2 description", "Image 3 description"],
   "images": [file1, file2, file3, file4, file5]
 }
 ```
@@ -367,6 +370,7 @@ uploads/
   metaDescription: String (required, max 160),
   introParagraph: String (required, max 1000),
   photoUrl: String (required),
+  photoAlt: String (required, max 125),
   categoryOption: String (enum: ['normal', 'gifting']),
   slug: String (unique, auto-generated),
   isActive: Boolean,
@@ -389,6 +393,7 @@ uploads/
   productTags: String (required, max 500),
   productCategories: [ObjectId] (ref: Category, required),
   productImageUrls: [String] (max 5),
+  productImageAlts: [String] (max 5, each max 125 chars),
   slug: String (unique, auto-generated),
   isActive: Boolean,
   isFeatured: Boolean,
