@@ -15,7 +15,9 @@ const {
     getActiveProducts,
     getFeaturedProducts,
     getProductsByCategory,
+    getProductsByCollectionTitle,
     getProductById,
+    getProductByTitle,
     createProduct,
     updateProduct,
     updateProductImages,
@@ -55,6 +57,16 @@ router.get('/category/:categoryId', [
     param('categoryId').custom(isValidObjectId).withMessage('Invalid category ID'),
     handleValidationErrors
 ], getProductsByCategory);
+
+// @route   GET /api/products/collection-title/:title
+// @desc    Get products by category collectionTitle (case-insensitive)
+// @access  Public
+router.get('/collection-title/:title', getProductsByCollectionTitle);
+
+// @route   GET /api/products/title/:title
+// @desc    Get product by productTitle (case-insensitive exact)
+// @access  Public
+router.get('/title/:title', getProductByTitle);
 
 // @route   GET /api/products/:id
 // @desc    Get product by ID

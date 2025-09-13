@@ -134,6 +134,51 @@ const getProductsByCategory = async (req, res) => {
     }
 };
 
+// @desc    Get products by category collectionTitle (case-insensitive)
+// @access  Public
+const getProductsByCollectionTitle = async (req, res) => {
+    try {
+        const { title } = req.params;
+
+        if (!title || typeof title !== 'string') {
+            return res.status(400).json({ success: false, message: 'Collection title is required' });
+        }
+
+        // Find active category matching collectionTitle (case-insensitive)
+        const category = await Category.findOne({
+            collectionTitle: { $regex: new RegExp(`^${title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') },
+            isActive: true,
+        });
+
+        if (!category) {
+            return res.status(404).json({ success: false, message: 'Category not found' });
+        }
+
+        // Fetch products in this category (active only)
+        const [products, productCount] = await Promise.all([
+            Product.find({ productCategories: category._id, isActive: true })
+                .populate('productCategories', 'collectionName collectionTitle')
+                .sort({ createdAt: -1 }),
+            Product.countDocuments({ productCategories: category._id, isActive: true }),
+        ]);
+
+        return res.json({
+            success: true,
+            data: {
+                collectionTitle: category.collectionTitle,
+                introParagraph: category.introParagraph,
+                imageUrl: category.photoUrl,
+                photoAlt: category.photoAlt,
+                productCount,
+                products,
+            },
+        });
+    } catch (error) {
+        console.error('Get products by collectionTitle error:', error);
+        return res.status(500).json({ success: false, message: 'Failed to get products by collectionTitle' });
+    }
+};
+
 // @desc    Get product by ID
 // @access  Private
 const getProductById = async (req, res) => {
@@ -160,6 +205,37 @@ const getProductById = async (req, res) => {
             success: false,
             message: 'Failed to get product'
         });
+    }
+};
+
+// @desc    Get product by productTitle (case-insensitive exact)
+// @access  Public
+const getProductByTitle = async (req, res) => {
+    try {
+        const { title } = req.params;
+
+        if (!title || typeof title !== 'string') {
+            return res.status(400).json({ success: false, message: 'Product title is required' });
+        }
+
+        // Escape regex special chars and do case-insensitive exact match
+        const escaped = title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const product = await Product.findOne({
+            productTitle: { $regex: new RegExp(`^${escaped}$`, 'i') },
+            isActive: true,
+        }).populate('productCategories', 'collectionName collectionTitle');
+
+        if (!product) {
+            return res.status(404).json({ success: false, message: 'Product not found' });
+        }
+
+        return res.json({
+            success: true,
+            data: { product },
+        });
+    } catch (error) {
+        console.error('Get product by title error:', error);
+        return res.status(500).json({ success: false, message: 'Failed to get product by title' });
     }
 };
 
@@ -421,7 +497,9 @@ module.exports = {
     getActiveProducts,
     getFeaturedProducts,
     getProductsByCategory,
+    getProductsByCollectionTitle,
     getProductById,
+    getProductByTitle,
     createProduct,
     updateProduct,
     updateProductImages,
