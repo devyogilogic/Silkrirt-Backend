@@ -10,7 +10,9 @@ const {
     createCategory,
     updateCategory,
     updateCategoryPhoto,
-    deleteCategory
+    deleteCategory,
+getActiveGiftingCategories
+
 } = require('../controllers/categoryController');
 
 const router = express.Router();
@@ -32,6 +34,8 @@ router.get('/', [
 // @desc    Get all active categories (for frontend use)
 // @access  Public
 router.get('/active', getActiveCategories);
+
+router.get('/active/gifting', getActiveGiftingCategories);
 
 // @route   GET /api/categories/:id
 // @desc    Get category by ID
