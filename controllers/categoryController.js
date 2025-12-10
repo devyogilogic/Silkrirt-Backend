@@ -69,7 +69,9 @@ const getCategories = async (req, res) => {
 // @access  Public
 const getActiveCategories = async (req, res) => {
     try {
+
         const categories = await Category.find({ isActive: true, type: 'normal' });
+
 
         res.json({
             success: true,
@@ -85,6 +87,7 @@ const getActiveCategories = async (req, res) => {
         });
     }
 };
+
 
 
 const getActiveGiftingCategories = async (req, res) => {
@@ -350,5 +353,7 @@ module.exports = {
     updateCategory,
     updateCategoryPhoto,
     deleteCategory,
+
     getActiveGiftingCategories
+
 };

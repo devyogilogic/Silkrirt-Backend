@@ -11,7 +11,9 @@ const {
     createCategory,
     updateCategory,
     updateCategoryPhoto,
-    deleteCategory
+    deleteCategory,
+getActiveGiftingCategories
+
 } = require('../controllers/categoryController');
 
 const router = express.Router();
@@ -35,6 +37,8 @@ router.get('/', [
 router.get('/active', getActiveCategories);
 router.get('/active/gifting', getActiveGiftingCategories);
 
+
+router.get('/active/gifting', getActiveGiftingCategories);
 
 // @route   GET /api/categories/:id
 // @desc    Get category by ID
