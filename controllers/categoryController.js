@@ -7,7 +7,7 @@ const { deleteFile } = require('../middleware/upload');
 const getCategories = async (req, res) => {
     try {
         const page = parseInt(req.query.page) || 1;
-        const limit = parseInt(req.query.limit) || 10;
+        const limit = parseInt(req.query.limit) || 100;
         const skip = (page - 1) * limit;
 
         const { search, option, active } = req.query;
@@ -69,7 +69,7 @@ const getCategories = async (req, res) => {
 // @access  Public
 const getActiveCategories = async (req, res) => {
     try {
-        const categories = await Category.getActiveCategories();
+        const categories = await Category.find({ isActive: true, type: 'normal' });
 
         res.json({
             success: true,
@@ -85,6 +85,26 @@ const getActiveCategories = async (req, res) => {
         });
     }
 };
+
+
+const getActiveGiftingCategories = async (req, res) => {
+    try {
+        const categories = await Category.find({ isActive: true, type: 'gifting' });
+
+        res.json({
+            success: true,
+            data: {
+                categories
+            }
+        });
+    } catch (error) {
+        console.error('Get active categories error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to get active categories'
+        });
+    }
+}
 
 // @desc    Get category by ID
 // @access  Private
@@ -329,5 +349,6 @@ module.exports = {
     createCategory,
     updateCategory,
     updateCategoryPhoto,
-    deleteCategory
+    deleteCategory,
+    getActiveGiftingCategories
 };

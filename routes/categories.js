@@ -6,6 +6,7 @@ const { handleValidationErrors, isValidObjectId, isValidCategoryOption } = requi
 const {
     getCategories,
     getActiveCategories,
+    getActiveGiftingCategories,
     getCategoryById,
     createCategory,
     updateCategory,
@@ -32,6 +33,8 @@ router.get('/', [
 // @desc    Get all active categories (for frontend use)
 // @access  Public
 router.get('/active', getActiveCategories);
+router.get('/active/gifting', getActiveGiftingCategories);
+
 
 // @route   GET /api/categories/:id
 // @desc    Get category by ID
