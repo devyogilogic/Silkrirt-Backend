@@ -11,8 +11,7 @@ const {
     createCategory,
     updateCategory,
     updateCategoryPhoto,
-    deleteCategory,
-getActiveGiftingCategories
+    deleteCategory
 
 } = require('../controllers/categoryController');
 

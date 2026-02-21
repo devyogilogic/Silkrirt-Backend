@@ -70,7 +70,7 @@ const getCategories = async (req, res) => {
 const getActiveCategories = async (req, res) => {
     try {
 
-        const categories = await Category.find({ isActive: true, type: 'normal' });
+        const categories = await Category.find({ isActive: true, categoryOption: 'normal' });
 
 
         res.json({

@@ -225,6 +225,26 @@ DELETE /categories/:id
 Authorization: Bearer <token>
 ```
 
+### SEO Endpoints
+
+#### Get SEO by path (Public – for frontend SSR)
+
+```http
+GET /seo/by-path?path=/
+GET /seo/by-path?path=/about
+GET /seo/by-path?path=/collections/sarees
+```
+
+Returns `{ success, data: { seo } }` with title, description, jsonLd, og*, twitter*, canonicalUrl, robots.
+
+#### List / Create / Update / Delete SEO (Admin, JWT required)
+
+- `GET /seo` – list all (pagination, search)
+- `GET /seo/:id` – get one
+- `POST /seo` – create (body: path, title, description, jsonLd, og*, twitter*, canonicalUrl, robotsNoindex, robotsNofollow, isActive)
+- `PUT /seo/:id` – update
+- `DELETE /seo/:id` – delete
+
 ### Product Endpoints
 
 #### Get All Products
