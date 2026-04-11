@@ -12,6 +12,20 @@ const pageSeoSchema = new mongoose.Schema({
         unique: true,
         lowercase: true
     },
+    routeType: {
+        type: String,
+        enum: ['static', 'category', 'product', 'blog'],
+        default: 'static'
+    },
+    sourceId: {
+        type: mongoose.Schema.Types.ObjectId,
+        default: null
+    },
+    label: {
+        type: String,
+        trim: true,
+        maxlength: [200, 'Label cannot exceed 200 characters']
+    },
     title: {
         type: String,
         trim: true,
@@ -121,5 +135,7 @@ const pageSeoSchema = new mongoose.Schema({
 
 pageSeoSchema.index({ path: 1 }, { unique: true });
 pageSeoSchema.index({ isActive: 1 });
+pageSeoSchema.index({ routeType: 1 });
+pageSeoSchema.index({ sourceId: 1 });
 
 module.exports = mongoose.model('PageSeo', pageSeoSchema);

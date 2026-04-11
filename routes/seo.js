@@ -8,7 +8,8 @@ const {
     getSeoById,
     createSeo,
     updateSeo,
-    deleteSeo
+    deleteSeo,
+    seedRoutes
 } = require('../controllers/seoController');
 
 const router = express.Router();
@@ -18,6 +19,9 @@ router.get('/by-path', [
     query('path').notEmpty().withMessage('Path is required'),
     handleValidationErrors
 ], getSeoByPath);
+
+// Admin: seed all known routes into PageSeo
+router.post('/seed', authenticateToken, requireAdmin, seedRoutes);
 
 // Admin: list all
 router.get('/', authenticateToken, requireAdmin, getAllSeo);

@@ -1,4 +1,5 @@
 const PageSeo = require('../models/PageSeo');
+const { seedAllExisting } = require('../utils/seoSync');
 
 // @desc    Get SEO by path (public - for frontend SSR)
 // @access  Public
@@ -67,18 +68,23 @@ const getAllSeo = async (req, res) => {
         const limit = parseInt(req.query.limit) || 50;
         const skip = (page - 1) * limit;
         const search = (req.query.search || '').trim();
+        const routeType = (req.query.routeType || '').trim();
 
         let query = {};
+        if (routeType && ['static', 'category', 'product', 'blog'].includes(routeType)) {
+            query.routeType = routeType;
+        }
         if (search) {
             query.$or = [
                 { path: { $regex: search, $options: 'i' } },
                 { title: { $regex: search, $options: 'i' } },
-                { description: { $regex: search, $options: 'i' } }
+                { description: { $regex: search, $options: 'i' } },
+                { label: { $regex: search, $options: 'i' } }
             ];
         }
 
         const [items, total] = await Promise.all([
-            PageSeo.find(query).sort({ path: 1 }).skip(skip).limit(limit).lean(),
+            PageSeo.find(query).sort({ routeType: 1, path: 1 }).skip(skip).limit(limit).lean(),
             PageSeo.countDocuments(query)
         ]);
 
@@ -265,11 +271,23 @@ const deleteSeo = async (req, res) => {
     }
 };
 
+const seedRoutes = async (req, res) => {
+    try {
+        await seedAllExisting();
+        const total = await PageSeo.countDocuments();
+        res.json({ success: true, message: 'SEO routes synced', total });
+    } catch (error) {
+        console.error('Seed SEO routes error:', error);
+        res.status(500).json({ success: false, message: 'Failed to seed routes' });
+    }
+};
+
 module.exports = {
     getSeoByPath,
     getAllSeo,
     getSeoById,
     createSeo,
     updateSeo,
-    deleteSeo
+    deleteSeo,
+    seedRoutes
 };

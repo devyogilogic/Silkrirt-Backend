@@ -8,7 +8,8 @@ const {
     isValidSKU,
     isValidJSON,
     isValidImageUrls,
-    isValidProductCategories
+    isValidProductCategories,
+    isValidProductCategoriesCreate
 } = require('../middleware/validation');
 const {
     getProducts,
@@ -16,6 +17,7 @@ const {
     getFeaturedProducts,
     getProductsByCategory,
     getProductsByCollectionTitle,
+    getProductPublicById,
     getProductById,
     getProductByTitle,
     createProduct,
@@ -68,6 +70,14 @@ router.get('/collection-title/:title', getProductsByCollectionTitle);
 // @access  Public
 router.get('/title/:title', getProductByTitle);
 
+// @route   GET /api/products/public/:id
+// @desc    Get active product by ID (public storefront)
+// @access  Public — must be before GET /:id
+router.get('/public/:id', [
+    param('id').custom(isValidObjectId).withMessage('Invalid product ID'),
+    handleValidationErrors
+], getProductPublicById);
+
 // @route   GET /api/products/:id
 // @desc    Get product by ID
 // @access  Private
@@ -111,8 +121,7 @@ router.post('/', [
     body('productTags')
         .notEmpty().withMessage('Product tags are required')
         .isLength({ max: 500 }).withMessage('Product tags cannot exceed 500 characters'),
-  
-   
+    body('productCategories').custom(isValidProductCategoriesCreate),
     body('isFeatured')
         .optional()
         .isBoolean().withMessage('isFeatured must be a boolean'),

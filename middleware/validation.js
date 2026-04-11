@@ -80,6 +80,20 @@ const isValidProductCategories = (value) => {
     return value.every(id => isValidObjectId(id));
 };
 
+/** For multipart POST: repeated productCategories fields may be array or single string */
+const isValidProductCategoriesCreate = (value, { req }) => {
+    const raw = req.body.productCategories;
+    const arr =
+        raw === undefined || raw === null ? [] : Array.isArray(raw) ? raw : [raw];
+    if (arr.length === 0) {
+        throw new Error('At least one category is required');
+    }
+    if (!arr.every((id) => isValidObjectId(String(id)))) {
+        throw new Error('Each category must be a valid id');
+    }
+    return true;
+};
+
 module.exports = {
     handleValidationErrors,
     isValidObjectId,
@@ -89,5 +103,6 @@ module.exports = {
     isValidPassword,
     isValidCategoryOption,
     isValidImageUrls,
-    isValidProductCategories
+    isValidProductCategories,
+    isValidProductCategoriesCreate
 };

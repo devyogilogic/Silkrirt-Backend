@@ -1,6 +1,7 @@
 const Product = require('../models/Product');
 const Category = require('../models/Category');
 const { deleteFiles } = require('../middleware/upload');
+const { upsertProductRoute, removeProductRoute } = require('../utils/seoSync');
 
 // @desc    Get all products with pagination and filtering
 // @access  Private
@@ -169,6 +170,8 @@ const getProductsByCollectionTitle = async (req, res) => {
                 introParagraph: category.introParagraph,
                 imageUrl: category.photoUrl,
                 photoAlt: category.photoAlt,
+                seoMetaTitle: category.seoMetaTitle,
+                metaDescription: category.metaDescription,
                 productCount,
                 products,
             },
@@ -176,6 +179,37 @@ const getProductsByCollectionTitle = async (req, res) => {
     } catch (error) {
         console.error('Get products by collectionTitle error:', error);
         return res.status(500).json({ success: false, message: 'Failed to get products by collectionTitle' });
+    }
+};
+
+// @desc    Get active product by ID (storefront, no auth)
+// @access  Public
+const getProductPublicById = async (req, res) => {
+    try {
+        const product = await Product.findOne({
+            _id: req.params.id,
+            isActive: true
+        }).populate('productCategories', 'collectionName collectionTitle');
+
+        if (!product) {
+            return res.status(404).json({
+                success: false,
+                message: 'Product not found'
+            });
+        }
+
+        res.json({
+            success: true,
+            data: {
+                product
+            }
+        });
+    } catch (error) {
+        console.error('Get public product error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to get product'
+        });
     }
 };
 
@@ -315,6 +349,7 @@ const createProduct = async (req, res) => {
         });
 
         await product.save();
+        upsertProductRoute(product).catch(e => console.error('SEO sync (product create):', e));
 
         // Populate categories for response
         await product.populate('productCategories', 'collectionName collectionTitle');
@@ -386,6 +421,7 @@ const updateProduct = async (req, res) => {
 
         Object.assign(product, req.body);
         await product.save();
+        upsertProductRoute(product).catch(e => console.error('SEO sync (product update):', e));
 
         // Populate categories for response
         await product.populate('productCategories', 'collectionName collectionTitle');
@@ -477,6 +513,7 @@ const deleteProduct = async (req, res) => {
         }
 
         // Delete product
+        removeProductRoute(req.params.id).catch(e => console.error('SEO sync (product delete):', e));
         await Product.findByIdAndDelete(req.params.id);
 
         res.json({
@@ -498,6 +535,7 @@ module.exports = {
     getFeaturedProducts,
     getProductsByCategory,
     getProductsByCollectionTitle,
+    getProductPublicById,
     getProductById,
     getProductByTitle,
     createProduct,

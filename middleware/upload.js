@@ -150,9 +150,114 @@ const deleteFiles = (filePaths) => {
     return filePaths.map(filePath => deleteFile(filePath));
 };
 
+const blogImageMime = new Set(['image/webp', 'image/jpeg', 'image/jpg', 'image/png']);
+
+const blogMaxSize = parseInt(process.env.BLOG_MAX_FILE_SIZE, 10) || 2097152; // 2MB default
+
+const blogStorage = multer.diskStorage({
+    destination: function (req, file, cb) {
+        const type = req.uploadType || 'blogs';
+        const typeDir = path.join(uploadDir, type);
+        if (!fs.existsSync(typeDir)) {
+            fs.mkdirSync(typeDir, { recursive: true });
+        }
+        cb(null, typeDir);
+    },
+    filename: function (req, file, cb) {
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+        const ext = path.extname(file.originalname) || '.webp';
+        cb(null, 'blog-' + uniqueSuffix + ext);
+    }
+});
+
+const blogFileFilter = (req, file, cb) => {
+    if (!blogImageMime.has(file.mimetype)) {
+        return cb(new Error('Only WebP, JPEG, or PNG images are allowed'), false);
+    }
+    cb(null, true);
+};
+
+const uploadBlogMulter = multer({
+    storage: blogStorage,
+    fileFilter: blogFileFilter,
+    limits: {
+        fileSize: blogMaxSize,
+        files: 1
+    }
+});
+
+const uploadBlogSingle = (req, res, next) => {
+    req.uploadType = 'blogs';
+    uploadBlogMulter.single('image')(req, res, (err) => {
+        if (err) {
+            if (err instanceof multer.MulterError && err.code === 'LIMIT_FILE_SIZE') {
+                return res.status(400).json({
+                    success: false,
+                    message: `File too large. Maximum ${blogMaxSize / 1024 / 1024}MB allowed.`
+                });
+            }
+            return res.status(400).json({
+                success: false,
+                message: err.message
+            });
+        }
+        if (req.file) {
+            req.fileUrl = `/uploads/blogs/${req.file.filename}`;
+        }
+        next();
+    });
+};
+
+const uploadBlogCover = (req, res, next) => {
+    req.uploadType = 'blogs';
+    uploadBlogMulter.single('cover')(req, res, (err) => {
+        if (err) {
+            if (err instanceof multer.MulterError && err.code === 'LIMIT_FILE_SIZE') {
+                return res.status(400).json({
+                    success: false,
+                    message: `File too large. Maximum ${blogMaxSize / 1024 / 1024}MB allowed.`
+                });
+            }
+            return res.status(400).json({
+                success: false,
+                message: err.message
+            });
+        }
+        if (req.file) {
+            req.fileUrl = `/uploads/blogs/${req.file.filename}`;
+        }
+        next();
+    });
+};
+
+const uploadTestimonialAvatar = (req, res, next) => {
+    req.uploadType = 'blogs';
+    uploadBlogMulter.single('avatar')(req, res, (err) => {
+        if (err) {
+            if (err instanceof multer.MulterError && err.code === 'LIMIT_FILE_SIZE') {
+                return res.status(400).json({
+                    success: false,
+                    message: `File too large. Maximum ${blogMaxSize / 1024 / 1024}MB allowed.`
+                });
+            }
+            return res.status(400).json({
+                success: false,
+                message: err.message
+            });
+        }
+        if (req.file) {
+            req.fileUrl = `/uploads/blogs/${req.file.filename}`;
+        }
+        next();
+    });
+};
+
 module.exports = {
     uploadSingle,
     uploadMultiple,
+    uploadBlogSingle,
+    uploadBlogCover,
+    uploadTestimonialAvatar,
     deleteFile,
     deleteFiles
 };

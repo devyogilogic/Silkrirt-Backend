@@ -1,6 +1,7 @@
 const Category = require('../models/Category');
 const Product = require('../models/Product');
 const { deleteFile } = require('../middleware/upload');
+const { upsertCategoryRoute, removeCategoryRoute } = require('../utils/seoSync');
 
 // @desc    Get all categories with pagination and filtering
 // @access  Private
@@ -181,6 +182,7 @@ const createCategory = async (req, res) => {
         });
 
         await category.save();
+        upsertCategoryRoute(category).catch(e => console.error('SEO sync (category create):', e));
 
         res.status(201).json({
             success: true,
@@ -234,6 +236,7 @@ const updateCategory = async (req, res) => {
         // Update category
         Object.assign(category, req.body);
         await category.save();
+        upsertCategoryRoute(category).catch(e => console.error('SEO sync (category update):', e));
 
         res.json({
             success: true,
@@ -330,6 +333,7 @@ const deleteCategory = async (req, res) => {
         }
 
         // Delete category
+        removeCategoryRoute(category).catch(e => console.error('SEO sync (category delete):', e));
         await Category.findByIdAndDelete(req.params.id);
 
         res.json({

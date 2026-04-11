@@ -493,6 +493,23 @@ curl -X POST http://localhost:5000/api/categories \
   -F "photo=@/path/to/image.webp"
 ```
 
+## Blogs, Testimonials, FAQs
+
+Public (no auth):
+
+- `GET /api/blogs/published` — query: `page`, `limit`, `search`, `tag`, `category`, `featured`, `trending`
+- `GET /api/blogs/slug/:slug` — single published post (increments `viewCount`)
+- `GET /api/testimonials/active` — active testimonials ordered by `sortOrder`
+- `GET /api/faqs/active` — active FAQs ordered by `sortOrder`
+
+Admin (`Authorization: Bearer <token>`, admin role):
+
+- `GET|POST /api/blogs`, `GET|PUT|DELETE /api/blogs/:id`, `POST /api/blogs/upload-image` (field `image` for inline editor images; `cover` on create/update for cover)
+- `GET|POST /api/testimonials`, `GET|PUT|DELETE /api/testimonials/:id` (optional `avatar` file)
+- `GET|POST /api/faqs`, `GET|PUT|DELETE /api/faqs/:id`
+
+Blog body HTML is sanitized on save (`sanitize-html`). Inline images use `uploads/blogs/` (WebP/JPEG/PNG, max size `BLOG_MAX_FILE_SIZE` bytes, default 2MB).
+
 ## 📝 License
 
 This project is licensed under the ISC License.

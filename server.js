@@ -4,7 +4,6 @@ const cors = require('cors');
 const helmet = require('helmet');
 const compression = require('compression');
 const morgan = require('morgan');
-const rateLimit = require('express-rate-limit');
 const path = require('path');
 require('dotenv').config();
 
@@ -12,6 +11,10 @@ const authRoutes = require('./routes/auth');
 const categoryRoutes = require('./routes/categories');
 const productRoutes = require('./routes/products');
 const seoRoutes = require('./routes/seo');
+const { seedStaticRoutes } = require('./utils/seoSync');
+const blogRoutes = require('./routes/blogs');
+const testimonialRoutes = require('./routes/testimonials');
+const faqRoutes = require('./routes/faqs');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -19,14 +22,6 @@ const PORT = process.env.PORT || 5000;
 // Security middleware
 app.use(helmet());
 app.use(compression());
-
-// Rate limiting
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // limit each IP to 100 requests per windowMs
-  message: 'Too many requests from this IP, please try again later.'
-});
-app.use('/api/', limiter);
 
 // CORS configuration
 // app.use(cors({
@@ -63,6 +58,9 @@ app.use('/api/auth', authRoutes);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/seo', seoRoutes);
+app.use('/api/blogs', blogRoutes);
+app.use('/api/testimonials', testimonialRoutes);
+app.use('/api/faqs', faqRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {
@@ -84,8 +82,9 @@ app.use('*', (req, res) => {
 
 // MongoDB connection
 mongoose.connect(process.env.MONGODB_URI)
-  .then(() => {
+  .then(async () => {
     console.log('✅ Connected to MongoDB');
+    seedStaticRoutes().then(() => console.log('✅ Static SEO routes seeded')).catch(e => console.error('SEO seed error:', e));
     app.listen(PORT, () => {
       console.log(`🚀 Server running on port ${PORT}`);
       console.log(`📊 Environment: ${process.env.NODE_ENV}`);
