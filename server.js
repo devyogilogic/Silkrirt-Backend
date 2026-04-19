@@ -20,7 +20,16 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 
 // Security middleware
-app.use(helmet());
+// Note: this API is consumed cross-origin by the frontend (silkriti.in,
+// localhost during development, the admin panel, etc.), so Helmet's default
+// `Cross-Origin-Resource-Policy: same-origin` would block uploaded images,
+// fonts and any other static asset from rendering in those pages. Switch CORP
+// to cross-origin so /uploads/* is actually usable by the frontend.
+app.use(
+  helmet({
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
+  })
+);
 app.use(compression());
 
 // CORS configuration
