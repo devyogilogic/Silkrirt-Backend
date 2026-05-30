@@ -1,0 +1,30 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    name: SSH → EC2 → restart silkriti-backend
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          port: 22
+          script: |
+            set -e
+            cd ~/silkriti-backend
+            git pull origin main
+            npm ci --omit=dev
+
+            pm2 describe silkriti-backend > /dev/null 2>&1 \
+              && pm2 restart silkriti-backend --update-env \
+              || pm2 start ~/silkriti-backend/ecosystem.config.js --only silkriti-backend --env production
+            pm2 save
