@@ -1,4 +1,5 @@
 const PageSeo = require('../models/PageSeo');
+const UrlRedirect = require('../models/UrlRedirect');
 
 const STATIC_ROUTES = [
     { path: '/', label: 'Home' },
@@ -14,7 +15,13 @@ const STATIC_ROUTES = [
 ];
 
 function normalizePath(p) {
-    let s = (p || '').trim().toLowerCase();
+    let s = (p || '').trim();
+    try {
+        s = decodeURIComponent(s);
+    } catch (e) {
+        /* ignore */
+    }
+    s = s.toLowerCase();
     if (!s.startsWith('/')) s = '/' + s;
     if (s.length > 1 && s.endsWith('/')) s = s.slice(0, -1);
     return s;
@@ -32,8 +39,8 @@ async function seedStaticRoutes() {
 }
 
 async function upsertCategoryRoute(category) {
-    if (!category || !category.collectionTitle) return;
-    const path = normalizePath(`/collections/${encodeURIComponent(category.collectionTitle)}`);
+    if (!category || !category.slug) return;
+    const path = normalizePath(`/${category.slug}`);
     await PageSeo.findOneAndUpdate(
         { path },
         {
@@ -47,17 +54,50 @@ async function upsertCategoryRoute(category) {
         },
         { upsert: true, new: true }
     );
+
+    if (category.collectionTitle) {
+        const legacy = normalizePath(`/collections/${category.collectionTitle}`);
+        await UrlRedirect.findOneAndUpdate(
+            { fromPath: legacy },
+            { $set: { toPath: path, permanent: true, note: 'collection title URL → slug' } },
+            { upsert: true, new: true }
+        );
+    }
 }
 
 async function removeCategoryRoute(category) {
-    if (!category || !category.collectionTitle) return;
-    const path = normalizePath(`/collections/${encodeURIComponent(category.collectionTitle)}`);
+    if (!category || !category.slug) return;
+    const path = normalizePath(`/${category.slug}`);
     await PageSeo.findOneAndUpdate({ path, routeType: 'category' }, { $set: { isActive: false } });
 }
 
+async function upsertSubCollectionRoute(sub) {
+    if (!sub || !sub.slug) return;
+    const path = normalizePath(`/${sub.slug}`);
+    await PageSeo.findOneAndUpdate(
+        { path },
+        {
+            $set: {
+                routeType: 'subcategory',
+                sourceId: sub._id,
+                label: sub.name,
+                isActive: sub.isActive !== false,
+            },
+            $setOnInsert: { path },
+        },
+        { upsert: true, new: true }
+    );
+}
+
+async function removeSubCollectionRoute(sub) {
+    if (!sub || !sub.slug) return;
+    const path = normalizePath(`/${sub.slug}`);
+    await PageSeo.findOneAndUpdate({ path, routeType: 'subcategory' }, { $set: { isActive: false } });
+}
+
 async function upsertProductRoute(product) {
-    if (!product || !product._id) return;
-    const path = normalizePath(`/product/${product._id}`);
+    if (!product || !product._id || !product.slug) return;
+    const path = normalizePath(`/${product.slug}`);
     await PageSeo.findOneAndUpdate(
         { path },
         {
@@ -71,11 +111,39 @@ async function upsertProductRoute(product) {
         },
         { upsert: true, new: true }
     );
+
+    const legacyIdPath = normalizePath(`/product/${product._id}`);
+    await UrlRedirect.findOneAndUpdate(
+        { fromPath: legacyIdPath },
+        { $set: { toPath: path, permanent: true, note: 'product id URL → slug' } },
+        { upsert: true, new: true }
+    );
 }
 
-async function removeProductRoute(productId) {
-    const path = normalizePath(`/product/${productId}`);
-    await PageSeo.findOneAndUpdate({ path, routeType: 'product' }, { $set: { isActive: false } });
+async function removeProductRoute(productOrId) {
+    const Product = require('../models/Product');
+    const mongoose = require('mongoose');
+    let prod = productOrId;
+    if (!prod || typeof prod === 'string' || prod instanceof mongoose.Types.ObjectId) {
+        const id = prod || productOrId;
+        prod = await Product.findById(id).select('slug').lean();
+    } else if (prod && prod._id && !prod.slug) {
+        prod = await Product.findById(prod._id).select('slug').lean();
+    }
+
+    if (prod && prod.slug) {
+        const path = normalizePath(`/${prod.slug}`);
+        await PageSeo.findOneAndUpdate({ path, routeType: 'product' }, { $set: { isActive: false } });
+    }
+    const id = prod && prod._id ? prod._id : productOrId;
+    if (id) {
+        const legacyIdPath = normalizePath(`/product/${id}`);
+        await UrlRedirect.findOneAndUpdate(
+            { fromPath: legacyIdPath },
+            { $set: { toPath: '/', permanent: false, note: 'product removed' } },
+            { upsert: true, new: true }
+        );
+    }
 }
 
 async function upsertBlogRoute(blog) {
@@ -104,6 +172,7 @@ async function removeBlogRoute(blog) {
 
 async function seedAllExisting() {
     const Category = require('../models/Category');
+    const SubCollection = require('../models/SubCollection');
     const Product = require('../models/Product');
     const Blog = require('../models/Blog');
 
@@ -112,6 +181,11 @@ async function seedAllExisting() {
     const categories = await Category.find({ isActive: true });
     for (const cat of categories) {
         await upsertCategoryRoute(cat);
+    }
+
+    const subs = await SubCollection.find({ isActive: true });
+    for (const s of subs) {
+        await upsertSubCollectionRoute(s);
     }
 
     const products = await Product.find({ isActive: true });
@@ -132,6 +206,8 @@ module.exports = {
     seedAllExisting,
     upsertCategoryRoute,
     removeCategoryRoute,
+    upsertSubCollectionRoute,
+    removeSubCollectionRoute,
     upsertProductRoute,
     removeProductRoute,
     upsertBlogRoute,

@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const { allocateRootSlug, slugify } = require('../utils/globalSlug');
 
 const productSchema = new mongoose.Schema({
     sku: {
@@ -66,10 +67,16 @@ const productSchema = new mongoose.Schema({
         trim: true,
         maxlength: [500, 'Product tags cannot exceed 500 characters']
     },
+    /** Primary merchandising hierarchy — preferred over legacy productCategories */
+    subCollection: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'SubCollection',
+        default: null,
+    },
+    /** Legacy: kept for migration; synced from subCollection when set */
     productCategories: [{
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Category',
-        required: [true, 'At least one category is required']
     }],
     productImageUrls: {
         type: [String],
@@ -96,6 +103,12 @@ const productSchema = new mongoose.Schema({
         lowercase: true,
         trim: true
     },
+    slugManual: {
+        type: String,
+        lowercase: true,
+        trim: true,
+        maxlength: [200, 'Slug override cannot exceed 200 characters']
+    },
     isActive: {
         type: Boolean,
         default: true
@@ -108,21 +121,33 @@ const productSchema = new mongoose.Schema({
     timestamps: true
 });
 
-// Generate slug before saving
-productSchema.pre('save', function (next) {
-    if (!this.isModified('productTitle')) return next();
+productSchema.pre('save', async function (next) {
+    try {
+        if (this.subCollection) {
+            const SubCollection = mongoose.model('SubCollection');
+            const sub = await SubCollection.findById(this.subCollection).select('collection').lean();
+            if (sub && sub.collection) {
+                this.productCategories = [sub.collection];
+            }
+        }
 
-    this.slug = this.productTitle
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/(^-|-$)/g, '');
-
-    next();
+        const needSlug = this.isNew || this.isModified('productTitle') || this.isModified('slugManual');
+        if (needSlug) {
+            const base = this.slugManual && String(this.slugManual).trim()
+                ? slugify(this.slugManual)
+                : slugify(this.productTitle);
+            this.slug = await allocateRootSlug(base, { productId: this._id });
+        }
+        return next();
+    } catch (e) {
+        return next(e);
+    }
 });
 
 // Index for better query performance
 productSchema.index({ sku: 1 }, { unique: true });
-productSchema.index({ slug: 1 }, { unique: true });
+productSchema.index({ slug: 1 });
+productSchema.index({ subCollection: 1 });
 productSchema.index({ productCategories: 1 });
 productSchema.index({ isActive: 1 });
 productSchema.index({ isFeatured: 1 });
@@ -143,26 +168,45 @@ productSchema.virtual('tagsArray').get(function () {
 });
 
 // Method to get active products
+const defaultCategoryPopulate = 'collectionName collectionTitle slug';
+const defaultSubPopulate = { path: 'subCollection', select: 'name slug collection', populate: { path: 'collection', select: defaultCategoryPopulate } };
+
 productSchema.statics.getActiveProducts = function () {
     return this.find({ isActive: true })
-        .populate('productCategories', 'collectionName collectionTitle')
+        .populate('productCategories', defaultCategoryPopulate)
+        .populate(defaultSubPopulate)
         .sort({ createdAt: -1 });
 };
 
 // Method to get featured products
 productSchema.statics.getFeaturedProducts = function () {
     return this.find({ isActive: true, isFeatured: true })
-        .populate('productCategories', 'collectionName collectionTitle')
+        .populate('productCategories', defaultCategoryPopulate)
+        .populate(defaultSubPopulate)
         .sort({ createdAt: -1 });
 };
 
-// Method to get products by category
-productSchema.statics.getByCategory = function (categoryId) {
+// Method to get products by category (legacy categories array or any subcollection under this collection)
+productSchema.statics.getByCategory = async function (categoryId) {
+    const SubCollection = mongoose.model('SubCollection');
+    const subIds = (await SubCollection.find({ collection: categoryId }).select('_id').lean()).map((s) => s._id);
     return this.find({
-        productCategories: categoryId,
-        isActive: true
+        isActive: true,
+        $or: [
+            { productCategories: categoryId },
+            { subCollection: { $in: subIds } },
+        ],
     })
-        .populate('productCategories', 'collectionName collectionTitle')
+        .populate('productCategories', defaultCategoryPopulate)
+        .populate(defaultSubPopulate)
+        .sort({ createdAt: -1 });
+};
+
+// Method to get products by subcollection id
+productSchema.statics.getBySubCollection = function (subId) {
+    return this.find({ subCollection: subId, isActive: true })
+        .populate('productCategories', defaultCategoryPopulate)
+        .populate(defaultSubPopulate)
         .sort({ createdAt: -1 });
 };
 
@@ -181,7 +225,8 @@ productSchema.statics.search = function (query) {
             }
         ]
     })
-        .populate('productCategories', 'collectionName collectionTitle')
+        .populate('productCategories', defaultCategoryPopulate)
+        .populate(defaultSubPopulate)
         .sort({ createdAt: -1 });
 };
 
@@ -193,5 +238,7 @@ productSchema.statics.skuExists = function (sku, excludeId = null) {
     }
     return this.findOne(query);
 };
+
+require('./SubCollection');
 
 module.exports = mongoose.model('Product', productSchema);

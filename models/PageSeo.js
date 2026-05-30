@@ -14,7 +14,7 @@ const pageSeoSchema = new mongoose.Schema({
     },
     routeType: {
         type: String,
-        enum: ['static', 'category', 'product', 'blog'],
+        enum: ['static', 'category', 'subcategory', 'product', 'blog', 'cms'],
         default: 'static'
     },
     sourceId: {
@@ -133,7 +133,6 @@ const pageSeoSchema = new mongoose.Schema({
     timestamps: true
 });
 
-pageSeoSchema.index({ path: 1 }, { unique: true });
 pageSeoSchema.index({ isActive: 1 });
 pageSeoSchema.index({ routeType: 1 });
 pageSeoSchema.index({ sourceId: 1 });

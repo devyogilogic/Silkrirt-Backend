@@ -9,7 +9,11 @@ require('dotenv').config();
 
 const authRoutes = require('./routes/auth');
 const categoryRoutes = require('./routes/categories');
+const subcollectionRoutes = require('./routes/subcollections');
+const publicRoutes = require('./routes/public');
 const productRoutes = require('./routes/products');
+require('./models/SubCollection');
+require('./models/UrlRedirect');
 const seoRoutes = require('./routes/seo');
 const { seedStaticRoutes } = require('./utils/seoSync');
 const blogRoutes = require('./routes/blogs');
@@ -65,6 +69,8 @@ app.get('/api/health', (req, res) => {
 // API routes
 app.use('/api/auth', authRoutes);
 app.use('/api/categories', categoryRoutes);
+app.use('/api/subcollections', subcollectionRoutes);
+app.use('/api/public', publicRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/seo', seoRoutes);
 app.use('/api/blogs', blogRoutes);

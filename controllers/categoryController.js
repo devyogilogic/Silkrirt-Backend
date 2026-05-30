@@ -1,6 +1,7 @@
 const Category = require('../models/Category');
 const Product = require('../models/Product');
-const { deleteFile } = require('../middleware/upload');
+const SubCollection = require('../models/SubCollection');
+const { deleteStoredFile } = require('../middleware/upload');
 const { upsertCategoryRoute, removeCategoryRoute } = require('../utils/seoSync');
 
 // @desc    Get all categories with pagination and filtering
@@ -91,9 +92,45 @@ const getActiveCategories = async (req, res) => {
 
 
 
+const getNavigationTree = async (req, res) => {
+    try {
+        const categories = await Category.find({
+            isActive: true,
+            categoryOption: 'normal',
+            showInNavigation: { $ne: false },
+        })
+            .sort({ navOrder: 1, createdAt: 1 })
+            .select('collectionName collectionTitle slug photoUrl')
+            .lean();
+
+        const catIds = categories.map((c) => c._id);
+        const subs = await SubCollection.find({ collection: { $in: catIds }, isActive: true })
+            .sort({ sortOrder: 1, createdAt: 1 })
+            .select('name slug collection imageUrl')
+            .lean();
+
+        const byCol = {};
+        for (const s of subs) {
+            const k = String(s.collection);
+            if (!byCol[k]) byCol[k] = [];
+            byCol[k].push(s);
+        }
+
+        const tree = categories.map((c) => ({
+            ...c,
+            subCollections: byCol[String(c._id)] || [],
+        }));
+
+        res.json({ success: true, data: { categories: tree } });
+    } catch (error) {
+        console.error('Navigation tree error:', error);
+        res.status(500).json({ success: false, message: 'Failed to load navigation' });
+    }
+};
+
 const getActiveGiftingCategories = async (req, res) => {
     try {
-        const categories = await Category.find({ isActive: true, type: 'gifting' });
+        const categories = await Category.find({ isActive: true, categoryOption: 'gifting' });
 
         res.json({
             success: true,
@@ -149,8 +186,14 @@ const createCategory = async (req, res) => {
             metaDescription,
             introParagraph,
             categoryOption,
-            photoAlt
+            photoAlt,
+            slugManual,
+            showInNavigation,
+            navOrder,
         } = req.body;
+
+        const navFlag = showInNavigation === undefined ? true : showInNavigation === true || showInNavigation === 'true';
+        const navOrd = navOrder !== undefined && navOrder !== '' ? Number(navOrder) : 0;
 
         // Check if collection name already exists
         const existingCategory = await Category.findOne({
@@ -158,9 +201,8 @@ const createCategory = async (req, res) => {
         });
 
         if (existingCategory) {
-            // Delete uploaded file if category already exists
             if (req.fileUrl) {
-                deleteFile(req.fileUrl);
+                await deleteStoredFile(req.fileUrl);
             }
 
             return res.status(400).json({
@@ -178,7 +220,10 @@ const createCategory = async (req, res) => {
             introParagraph,
             categoryOption,
             photoUrl: req.fileUrl,
-            photoAlt
+            photoAlt,
+            slugManual: slugManual || undefined,
+            showInNavigation: navFlag,
+            navOrder: Number.isFinite(navOrd) ? navOrd : 0,
         });
 
         await category.save();
@@ -192,9 +237,8 @@ const createCategory = async (req, res) => {
             }
         });
     } catch (error) {
-        // Delete uploaded file if error occurs
         if (req.fileUrl) {
-            deleteFile(req.fileUrl);
+            await deleteStoredFile(req.fileUrl);
         }
 
         console.error('Create category error:', error);
@@ -261,9 +305,8 @@ const updateCategoryPhoto = async (req, res) => {
         const category = await Category.findById(req.params.id);
 
         if (!category) {
-            // Delete uploaded file if category not found
             if (req.fileUrl) {
-                deleteFile(req.fileUrl);
+                await deleteStoredFile(req.fileUrl);
             }
 
             return res.status(404).json({
@@ -272,9 +315,8 @@ const updateCategoryPhoto = async (req, res) => {
             });
         }
 
-        // Delete old photo if exists
         if (category.photoUrl) {
-            deleteFile(category.photoUrl);
+            await deleteStoredFile(category.photoUrl);
         }
 
         // Update photo URL
@@ -289,9 +331,8 @@ const updateCategoryPhoto = async (req, res) => {
             }
         });
     } catch (error) {
-        // Delete uploaded file if error occurs
         if (req.fileUrl) {
-            deleteFile(req.fileUrl);
+            await deleteStoredFile(req.fileUrl);
         }
 
         console.error('Update category photo error:', error);
@@ -315,7 +356,14 @@ const deleteCategory = async (req, res) => {
             });
         }
 
-        // Check if category is being used by any products
+        const hasSubs = await SubCollection.findOne({ collection: req.params.id });
+        if (hasSubs) {
+            return res.status(400).json({
+                success: false,
+                message: 'Cannot delete category. Remove or reassign its subcollections first.'
+            });
+        }
+
         const productsUsingCategory = await Product.findOne({
             productCategories: req.params.id
         });
@@ -327,9 +375,8 @@ const deleteCategory = async (req, res) => {
             });
         }
 
-        // Delete photo file
         if (category.photoUrl) {
-            deleteFile(category.photoUrl);
+            await deleteStoredFile(category.photoUrl);
         }
 
         // Delete category
@@ -352,6 +399,7 @@ const deleteCategory = async (req, res) => {
 module.exports = {
     getCategories,
     getActiveCategories,
+    getNavigationTree,
     getCategoryById,
     createCategory,
     updateCategory,

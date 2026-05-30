@@ -71,7 +71,7 @@ const getAllSeo = async (req, res) => {
         const routeType = (req.query.routeType || '').trim();
 
         let query = {};
-        if (routeType && ['static', 'category', 'product', 'blog'].includes(routeType)) {
+        if (routeType && ['static', 'category', 'subcategory', 'product', 'blog', 'cms'].includes(routeType)) {
             query.routeType = routeType;
         }
         if (search) {

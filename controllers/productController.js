@@ -1,6 +1,7 @@
 const Product = require('../models/Product');
 const Category = require('../models/Category');
-const { deleteFiles } = require('../middleware/upload');
+const SubCollection = require('../models/SubCollection');
+const { deleteStoredFiles } = require('../middleware/upload');
 const { upsertProductRoute, removeProductRoute } = require('../utils/seoSync');
 
 // @desc    Get all products with pagination and filtering
@@ -11,7 +12,7 @@ const getProducts = async (req, res) => {
         const limit = parseInt(req.query.limit) || 100;
         const skip = (page - 1) * limit;
 
-        const { search, category, featured, active } = req.query;
+        const { search, category, subCollection, featured, active } = req.query;
 
         // Build query
         let query = {};
@@ -31,6 +32,10 @@ const getProducts = async (req, res) => {
             query.productCategories = category;
         }
 
+        if (subCollection) {
+            query.subCollection = subCollection;
+        }
+
         if (featured !== undefined) {
             query.isFeatured = featured === 'true';
         }
@@ -41,7 +46,12 @@ const getProducts = async (req, res) => {
 
         // Execute query with pagination and populate categories
         const products = await Product.find(query)
-            .populate('productCategories', 'collectionName collectionTitle')
+            .populate('productCategories', 'collectionName collectionTitle slug')
+            .populate({
+                path: 'subCollection',
+                select: 'name slug collection',
+                populate: { path: 'collection', select: 'collectionName collectionTitle slug' },
+            })
             .sort({ createdAt: -1 })
             .skip(skip)
             .limit(limit);
@@ -189,7 +199,13 @@ const getProductPublicById = async (req, res) => {
         const product = await Product.findOne({
             _id: req.params.id,
             isActive: true
-        }).populate('productCategories', 'collectionName collectionTitle');
+        })
+            .populate('productCategories', 'collectionName collectionTitle slug')
+            .populate({
+                path: 'subCollection',
+                select: 'name slug description imageUrl collection',
+                populate: { path: 'collection', select: 'collectionName collectionTitle slug' },
+            });
 
         if (!product) {
             return res.status(404).json({
@@ -213,12 +229,39 @@ const getProductPublicById = async (req, res) => {
     }
 };
 
+const getProductPublicBySlug = async (req, res) => {
+    try {
+        const raw = (req.params.slug || '').trim().toLowerCase();
+        const product = await Product.findOne({ slug: raw, isActive: true })
+            .populate('productCategories', 'collectionName collectionTitle slug')
+            .populate({
+                path: 'subCollection',
+                select: 'name slug description imageUrl collection',
+                populate: { path: 'collection', select: 'collectionName collectionTitle slug' },
+            });
+
+        if (!product) {
+            return res.status(404).json({ success: false, message: 'Product not found' });
+        }
+
+        res.json({ success: true, data: { product } });
+    } catch (error) {
+        console.error('Get public product by slug error:', error);
+        res.status(500).json({ success: false, message: 'Failed to get product' });
+    }
+};
+
 // @desc    Get product by ID
 // @access  Private
 const getProductById = async (req, res) => {
     try {
         const product = await Product.findById(req.params.id)
-            .populate('productCategories', 'collectionName collectionTitle');
+            .populate('productCategories', 'collectionName collectionTitle slug')
+            .populate({
+                path: 'subCollection',
+                select: 'name slug collection',
+                populate: { path: 'collection', select: 'collectionName collectionTitle slug' },
+            });
 
         if (!product) {
             return res.status(404).json({
@@ -289,49 +332,50 @@ const createProduct = async (req, res) => {
             productTags,
             productCategories,
             productImageAlts,
+            subCollectionId,
+            slugManual,
             isFeatured = false
         } = req.body;
 
-        // Convert productCategories from string to array if needed
-        const categoriesArray = Array.isArray(productCategories)
+        let categoriesArray = Array.isArray(productCategories)
             ? productCategories
             : productCategories ? productCategories.split(',').map(id => id.trim()) : [];
 
-        console.log(req.body);
-
-        // Check if product with same SKU already exists
         const existingProduct = await Product.findOne({ sku });
         if (existingProduct) {
-            // Delete uploaded files if product already exists
-            if (req.fileUrls) {
-                deleteFiles(req.fileUrls);
-            }
-
+            if (req.fileUrls) await deleteStoredFiles(req.fileUrls);
             return res.status(400).json({
                 success: false,
                 message: 'Product with this SKU already exists'
             });
         }
 
-        // Verify all categories exist
-        const categories = await Category.find({
-            _id: { $in: categoriesArray },
-            isActive: true
-        });
-
-        if (categories.length !== categoriesArray.length) {
-            // Delete uploaded files if categories don't exist
-            if (req.fileUrls) {
-                deleteFiles(req.fileUrls);
+        let subId = subCollectionId && String(subCollectionId).trim() ? subCollectionId : null;
+        if (subId) {
+            const sub = await SubCollection.findById(subId);
+            if (!sub || !sub.isActive) {
+                if (req.fileUrls) await deleteStoredFiles(req.fileUrls);
+                return res.status(400).json({
+                    success: false,
+                    message: 'Subcollection not found or inactive'
+                });
             }
-
-            return res.status(400).json({
-                success: false,
-                message: 'One or more categories do not exist or are inactive'
+            categoriesArray = [];
+        } else {
+            const categories = await Category.find({
+                _id: { $in: categoriesArray },
+                isActive: true
             });
+
+            if (categories.length !== categoriesArray.length) {
+                if (req.fileUrls) await deleteStoredFiles(req.fileUrls);
+                return res.status(400).json({
+                    success: false,
+                    message: 'One or more categories do not exist or are inactive'
+                });
+            }
         }
 
-        // Create new product
         const product = new Product({
             sku: sku.toUpperCase(),
             productTitle,
@@ -343,16 +387,22 @@ const createProduct = async (req, res) => {
             seoMetaDescription,
             productTags,
             productCategories: categoriesArray,
+            subCollection: subId || undefined,
             productImageUrls: req.fileUrls,
             productImageAlts,
+            slugManual: slugManual || undefined,
             isFeatured
         });
 
         await product.save();
         upsertProductRoute(product).catch(e => console.error('SEO sync (product create):', e));
 
-        // Populate categories for response
-        await product.populate('productCategories', 'collectionName collectionTitle');
+        await product.populate('productCategories', 'collectionName collectionTitle slug');
+        await product.populate({
+            path: 'subCollection',
+            select: 'name slug collection',
+            populate: { path: 'collection', select: 'collectionName collectionTitle slug' },
+        });
 
         res.status(201).json({
             success: true,
@@ -362,10 +412,7 @@ const createProduct = async (req, res) => {
             }
         });
     } catch (error) {
-        // Delete uploaded files if error occurs
-        if (req.fileUrls) {
-            deleteFiles(req.fileUrls);
-        }
+        if (req.fileUrls) await deleteStoredFiles(req.fileUrls);
 
         console.error('Create product error:', error);
         res.status(500).json({
@@ -399,7 +446,6 @@ const updateProduct = async (req, res) => {
             }
         }
 
-        // Verify categories exist (if being updated)
         if (req.body.productCategories) {
             const categories = await Category.find({
                 _id: { $in: req.body.productCategories },
@@ -414,17 +460,38 @@ const updateProduct = async (req, res) => {
             }
         }
 
-        // Update product
+        if (req.body.subCollectionId !== undefined) {
+            const sid = req.body.subCollectionId;
+            if (sid === null || sid === '') {
+                product.subCollection = null;
+            } else {
+                const sub = await SubCollection.findById(sid);
+                if (!sub) {
+                    return res.status(400).json({ success: false, message: 'Subcollection not found' });
+                }
+                product.subCollection = sid;
+            }
+        }
+
         if (req.body.sku) {
             req.body.sku = req.body.sku.toUpperCase();
         }
 
-        Object.assign(product, req.body);
+        const skipKeys = new Set(['subCollectionId', '_id']);
+        for (const key of Object.keys(req.body)) {
+            if (skipKeys.has(key)) continue;
+            product[key] = req.body[key];
+        }
+
         await product.save();
         upsertProductRoute(product).catch(e => console.error('SEO sync (product update):', e));
 
-        // Populate categories for response
-        await product.populate('productCategories', 'collectionName collectionTitle');
+        await product.populate('productCategories', 'collectionName collectionTitle slug');
+        await product.populate({
+            path: 'subCollection',
+            select: 'name slug collection',
+            populate: { path: 'collection', select: 'collectionName collectionTitle slug' },
+        });
 
         res.json({
             success: true,
@@ -449,10 +516,7 @@ const updateProductImages = async (req, res) => {
         const product = await Product.findById(req.params.id);
 
         if (!product) {
-            // Delete uploaded files if product not found
-            if (req.fileUrls) {
-                deleteFiles(req.fileUrls);
-            }
+            if (req.fileUrls) await deleteStoredFiles(req.fileUrls);
 
             return res.status(404).json({
                 success: false,
@@ -460,9 +524,8 @@ const updateProductImages = async (req, res) => {
             });
         }
 
-        // Delete old images
         if (product.productImageUrls && product.productImageUrls.length > 0) {
-            deleteFiles(product.productImageUrls);
+            await deleteStoredFiles(product.productImageUrls);
         }
 
         // Update image URLs and alt texts
@@ -481,10 +544,7 @@ const updateProductImages = async (req, res) => {
             }
         });
     } catch (error) {
-        // Delete uploaded files if error occurs
-        if (req.fileUrls) {
-            deleteFiles(req.fileUrls);
-        }
+        if (req.fileUrls) await deleteStoredFiles(req.fileUrls);
 
         console.error('Update product images error:', error);
         res.status(500).json({
@@ -507,13 +567,11 @@ const deleteProduct = async (req, res) => {
             });
         }
 
-        // Delete product images
         if (product.productImageUrls && product.productImageUrls.length > 0) {
-            deleteFiles(product.productImageUrls);
+            await deleteStoredFiles(product.productImageUrls);
         }
 
-        // Delete product
-        removeProductRoute(req.params.id).catch(e => console.error('SEO sync (product delete):', e));
+        removeProductRoute(product).catch(e => console.error('SEO sync (product delete):', e));
         await Product.findByIdAndDelete(req.params.id);
 
         res.json({
@@ -536,6 +594,7 @@ module.exports = {
     getProductsByCategory,
     getProductsByCollectionTitle,
     getProductPublicById,
+    getProductPublicBySlug,
     getProductById,
     getProductByTitle,
     createProduct,

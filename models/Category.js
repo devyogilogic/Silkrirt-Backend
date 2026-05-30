@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const { allocateRootSlug, slugify } = require('../utils/globalSlug');
 
 const categorySchema = new mongoose.Schema({
     collectionName: {
@@ -56,6 +57,21 @@ const categorySchema = new mongoose.Schema({
         lowercase: true,
         trim: true
     },
+    /** Optional manual root slug (SEO); uniqueness enforced globally with other entities */
+    slugManual: {
+        type: String,
+        lowercase: true,
+        trim: true,
+        maxlength: [200, 'Slug override cannot exceed 200 characters']
+    },
+    showInNavigation: {
+        type: Boolean,
+        default: true
+    },
+    navOrder: {
+        type: Number,
+        default: 0
+    },
     isActive: {
         type: Boolean,
         default: true
@@ -64,20 +80,25 @@ const categorySchema = new mongoose.Schema({
     timestamps: true
 });
 
-// Generate slug before saving
-categorySchema.pre('save', function (next) {
-    if (!this.isModified('collectionName')) return next();
+// Root slug — unique across categories, subcollections, products, active PageSeo root paths, blogs
+categorySchema.pre('save', async function (next) {
+    try {
+        const needSlug = this.isNew || this.isModified('collectionName') || this.isModified('slugManual');
+        if (!needSlug) return next();
 
-    this.slug = this.collectionName
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/(^-|-$)/g, '');
+        const base = this.slugManual && String(this.slugManual).trim()
+            ? slugify(this.slugManual)
+            : slugify(this.collectionName);
 
-    next();
+        this.slug = await allocateRootSlug(base, { categoryId: this._id });
+        return next();
+    } catch (e) {
+        return next(e);
+    }
 });
 
-// Index for better query performance
-categorySchema.index({ slug: 1 }, { unique: true });
+// Index for better query performance (global uniqueness enforced in application layer)
+categorySchema.index({ slug: 1 });
 categorySchema.index({ categoryOption: 1 });
 categorySchema.index({ isActive: 1 });
 

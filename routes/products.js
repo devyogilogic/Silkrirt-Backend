@@ -9,7 +9,7 @@ const {
     isValidJSON,
     isValidImageUrls,
     isValidProductCategories,
-    isValidProductCategoriesCreate
+    isValidProductCreateCategoriesOrSub
 } = require('../middleware/validation');
 const {
     getProducts,
@@ -18,6 +18,7 @@ const {
     getProductsByCategory,
     getProductsByCollectionTitle,
     getProductPublicById,
+    getProductPublicBySlug,
     getProductById,
     getProductByTitle,
     createProduct,
@@ -37,6 +38,7 @@ router.get('/', [
     query('limit').optional().isInt({ min: 1, max: 100 }).withMessage('Limit must be between 1 and 100'),
     query('search').optional().isString().withMessage('Search must be a string'),
     query('category').optional().custom(isValidObjectId).withMessage('Invalid category ID'),
+    query('subCollection').optional().custom(isValidObjectId).withMessage('Invalid subcollection ID'),
     query('featured').optional().isBoolean().withMessage('Featured must be a boolean'),
     query('active').optional().isBoolean().withMessage('Active must be a boolean'),
     handleValidationErrors
@@ -70,9 +72,14 @@ router.get('/collection-title/:title', getProductsByCollectionTitle);
 // @access  Public
 router.get('/title/:title', getProductByTitle);
 
+// @route   GET /api/products/public/slug/:slug
+// @access  Public — before /public/:id so "slug" is not parsed as ObjectId
+router.get('/public/slug/:slug', [
+    param('slug').isLength({ min: 1, max: 220 }).withMessage('Invalid slug'),
+    handleValidationErrors
+], getProductPublicBySlug);
+
 // @route   GET /api/products/public/:id
-// @desc    Get active product by ID (public storefront)
-// @access  Public — must be before GET /:id
 router.get('/public/:id', [
     param('id').custom(isValidObjectId).withMessage('Invalid product ID'),
     handleValidationErrors
@@ -121,7 +128,9 @@ router.post('/', [
     body('productTags')
         .notEmpty().withMessage('Product tags are required')
         .isLength({ max: 500 }).withMessage('Product tags cannot exceed 500 characters'),
-    body('productCategories').custom(isValidProductCategoriesCreate),
+    body('productCategories').custom(isValidProductCreateCategoriesOrSub),
+    body('subCollectionId').optional().custom((v) => !v || isValidObjectId(String(v))).withMessage('Invalid subcollection id'),
+    body('slugManual').optional().isLength({ max: 200 }),
     body('isFeatured')
         .optional()
         .isBoolean().withMessage('isFeatured must be a boolean'),
@@ -165,6 +174,8 @@ router.put('/:id', [
     body('productCategories')
         .optional()
         .custom(isValidProductCategories).withMessage('Invalid product categories'),
+    body('subCollectionId').optional().custom((v) => v === null || v === '' || isValidObjectId(String(v))).withMessage('Invalid subcollection id'),
+    body('slugManual').optional().isLength({ max: 200 }),
     body('productImageAlts')
         .optional()
         .isArray().withMessage('Product image alt texts must be an array')

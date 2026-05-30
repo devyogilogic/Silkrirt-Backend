@@ -6,6 +6,7 @@ const { handleValidationErrors, isValidObjectId, isValidCategoryOption } = requi
 const {
     getCategories,
     getActiveCategories,
+    getNavigationTree,
     getActiveGiftingCategories,
     getCategoryById,
     createCategory,
@@ -30,13 +31,15 @@ router.get('/', [
     handleValidationErrors
 ], getCategories);
 
+// @route   GET /api/categories/navigation
+// @desc    Collections shown in nav + subcollections (mega menu)
+// @access  Public
+router.get('/navigation', getNavigationTree);
+
 // @route   GET /api/categories/active
 // @desc    Get all active categories (for frontend use)
 // @access  Public
 router.get('/active', getActiveCategories);
-router.get('/active/gifting', getActiveGiftingCategories);
-
-
 router.get('/active/gifting', getActiveGiftingCategories);
 
 // @route   GET /api/categories/:id
@@ -73,6 +76,8 @@ router.post('/', [
     body('categoryOption')
         .notEmpty().withMessage('Category option is required')
         .custom(isValidCategoryOption).withMessage('Category option must be either "normal" or "gifting"'),
+    body('slugManual').optional().isLength({ max: 200 }),
+    body('navOrder').optional().isInt(),
 
     handleValidationErrors
 ], createCategory);
@@ -108,6 +113,8 @@ router.put('/:id', [
     body('photoAlt')
         .optional()
         .isLength({ max: 125 }).withMessage('Photo alt text cannot exceed 125 characters'),
+    body('slugManual').optional().isLength({ max: 200 }),
+    body('navOrder').optional().isInt(),
     handleValidationErrors
 ], updateCategory);
 

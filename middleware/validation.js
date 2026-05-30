@@ -94,6 +94,18 @@ const isValidProductCategoriesCreate = (value, { req }) => {
     return true;
 };
 
+/** Prefer subCollectionId; otherwise legacy productCategories */
+const isValidProductCreateCategoriesOrSub = (value, { req }) => {
+    const rawSub = req.body.subCollectionId;
+    if (rawSub !== undefined && rawSub !== null && String(rawSub).trim() !== '') {
+        if (!isValidObjectId(String(rawSub))) {
+            throw new Error('subCollectionId must be a valid id');
+        }
+        return true;
+    }
+    return isValidProductCategoriesCreate(value, { req });
+};
+
 module.exports = {
     handleValidationErrors,
     isValidObjectId,
@@ -104,5 +116,6 @@ module.exports = {
     isValidCategoryOption,
     isValidImageUrls,
     isValidProductCategories,
-    isValidProductCategoriesCreate
+    isValidProductCategoriesCreate,
+    isValidProductCreateCategoriesOrSub
 };
