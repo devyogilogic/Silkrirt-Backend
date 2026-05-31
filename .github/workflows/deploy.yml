@@ -20,13 +20,13 @@ jobs:
 
       - name: Deploy
         run: |
-          ssh -i ~/.ssh/deploy_key ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }} << 'EOF'
+          ssh -i ~/.ssh/deploy_key ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }} 'sudo bash -s' << 'EOF'
             set -e
-            cd ~/silkriti-backend
+            cd /home/ubuntu/silkriti-backend
             git pull origin main
             npm ci --omit=dev --legacy-peer-deps
             pm2 describe silkriti-backend > /dev/null 2>&1 \
               && pm2 restart silkriti-backend --update-env \
-              || pm2 start ~/silkriti-backend/ecosystem.config.js --only silkriti-backend --env production
+              || pm2 start /home/ubuntu/silkriti-backend/ecosystem.config.js --only silkriti-backend --env production
             pm2 save
           EOF
