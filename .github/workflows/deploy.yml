@@ -24,6 +24,7 @@ jobs:
             set -e
             cd /home/ubuntu/silkriti-backend
             git pull origin main
+            rm -rf node_modules
             npm ci --omit=dev --legacy-peer-deps
             pm2 describe silkriti-backend > /dev/null 2>&1 \
               && pm2 restart silkriti-backend --update-env \
