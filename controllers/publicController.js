@@ -94,6 +94,40 @@ const getProductsBySubSlug = async (req, res) => {
     }
 };
 
+const getProductsByCollectionSlug = async (req, res) => {
+    try {
+        const raw = (req.params.slug || '').trim();
+        const cat = await Category.findOne({ slug: raw.toLowerCase(), isActive: true }).lean();
+        if (!cat) return res.status(404).json({ success: false, message: 'Collection not found' });
+
+        const page = parseInt(req.query.page, 10) || 1;
+        const limit = Math.min(parseInt(req.query.limit, 10) || 48, 100);
+        const skip = (page - 1) * limit;
+
+        const [items, total] = await Promise.all([
+            Product.find({ productCategories: { $in: [cat._id] }, isActive: true })
+                .populate('productCategories', categoryPopulate)
+                .populate(subPopulate)
+                .sort({ createdAt: -1 })
+                .skip(skip)
+                .limit(limit)
+                .lean(),
+            Product.countDocuments({ productCategories: { $in: [cat._id] }, isActive: true }),
+        ]);
+
+        return res.json({
+            success: true,
+            data: {
+                products: items,
+                pagination: { page, limit, total, pages: Math.ceil(total / limit) },
+            },
+        });
+    } catch (e) {
+        console.error(e);
+        return res.status(500).json({ success: false, message: 'Failed to load products' });
+    }
+};
+
 const legacyRedirect = async (req, res) => {
     try {
         const pathParam = req.query.path;
@@ -151,5 +185,6 @@ const legacyRedirect = async (req, res) => {
 module.exports = {
     resolveSlug,
     getProductsBySubSlug,
+    getProductsByCollectionSlug,
     legacyRedirect,
 };
