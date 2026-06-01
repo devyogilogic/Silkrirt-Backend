@@ -117,10 +117,12 @@ EOF
 
 cat > ~/silkriti-client/.env.local << EOF
 NEXT_PUBLIC_API_URL=https://api.silkriti.in/api
+API_INTERNAL_URL=http://localhost:5000/api
 EOF
 
 cat > ~/silkriti-admin/.env.local << EOF
 NEXT_PUBLIC_API_URL=https://api.silkriti.in/api
+API_INTERNAL_URL=http://localhost:5000/api
 EOF
 
 chmod 600 ~/silkriti-backend/.env ~/silkriti-client/.env.local ~/silkriti-admin/.env.local
