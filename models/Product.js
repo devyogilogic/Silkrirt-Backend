@@ -116,6 +116,10 @@ const productSchema = new mongoose.Schema({
     isFeatured: {
         type: Boolean,
         default: false
+    },
+    isNewArrival: {
+        type: Boolean,
+        default: false
     }
 }, {
     timestamps: true
@@ -151,6 +155,7 @@ productSchema.index({ subCollection: 1 });
 productSchema.index({ productCategories: 1 });
 productSchema.index({ isActive: 1 });
 productSchema.index({ isFeatured: 1 });
+productSchema.index({ isNewArrival: 1 });
 productSchema.index({ productTitle: 'text', shortDescription: 'text', productTags: 'text' });
 
 // Virtual for formatted specifications
@@ -173,6 +178,14 @@ const defaultSubPopulate = { path: 'subCollection', select: 'name slug collectio
 
 productSchema.statics.getActiveProducts = function () {
     return this.find({ isActive: true })
+        .populate('productCategories', defaultCategoryPopulate)
+        .populate(defaultSubPopulate)
+        .sort({ createdAt: -1 });
+};
+
+// Method to get new arrival products
+productSchema.statics.getNewArrivalProducts = function () {
+    return this.find({ isActive: true, isNewArrival: true })
         .populate('productCategories', defaultCategoryPopulate)
         .populate(defaultSubPopulate)
         .sort({ createdAt: -1 });

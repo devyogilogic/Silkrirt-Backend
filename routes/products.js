@@ -14,6 +14,7 @@ const {
 const {
     getProducts,
     getActiveProducts,
+    getNewArrivalProducts,
     getFeaturedProducts,
     getProductsByCategory,
     getProductsByCollectionTitle,
@@ -48,6 +49,11 @@ router.get('/', [
 // @desc    Get all active products (for frontend use)
 // @access  Public
 router.get('/active', getActiveProducts);
+
+// @route   GET /api/products/new-arrivals
+// @desc    Get new arrival products (isNewArrival=true)
+// @access  Public
+router.get('/new-arrivals', getNewArrivalProducts);
 
 // @route   GET /api/products/featured
 // @desc    Get featured products
@@ -191,6 +197,9 @@ router.put('/:id', [
     body('isFeatured')
         .optional()
         .isBoolean().withMessage('isFeatured must be a boolean'),
+    body('isNewArrival')
+        .optional()
+        .isBoolean().withMessage('isNewArrival must be a boolean'),
     handleValidationErrors
 ], updateProduct);
 

@@ -103,6 +103,18 @@ const getActiveProducts = async (req, res) => {
     }
 };
 
+// @desc    Get new arrival products
+// @access  Public
+const getNewArrivalProducts = async (req, res) => {
+    try {
+        const products = await Product.getNewArrivalProducts();
+        res.json({ success: true, data: { products } });
+    } catch (error) {
+        console.error('Get new arrival products error:', error);
+        res.status(500).json({ success: false, message: 'Failed to get new arrival products' });
+    }
+};
+
 // @desc    Get featured products
 // @access  Public
 const getFeaturedProducts = async (req, res) => {
@@ -590,6 +602,7 @@ const deleteProduct = async (req, res) => {
 module.exports = {
     getProducts,
     getActiveProducts,
+    getNewArrivalProducts,
     getFeaturedProducts,
     getProductsByCategory,
     getProductsByCollectionTitle,
