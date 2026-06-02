@@ -19,6 +19,7 @@ const { seedStaticRoutes } = require('./utils/seoSync');
 const blogRoutes = require('./routes/blogs');
 const testimonialRoutes = require('./routes/testimonials');
 const faqRoutes = require('./routes/faqs');
+const leadRoutes = require('./routes/leads');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -76,6 +77,7 @@ app.use('/api/seo', seoRoutes);
 app.use('/api/blogs', blogRoutes);
 app.use('/api/testimonials', testimonialRoutes);
 app.use('/api/faqs', faqRoutes);
+app.use('/api/leads', leadRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {
