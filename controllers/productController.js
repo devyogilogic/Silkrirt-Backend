@@ -103,6 +103,23 @@ const getActiveProducts = async (req, res) => {
     }
 };
 
+// @desc    Public product search
+// @access  Public
+const searchProductsPublic = async (req, res) => {
+    try {
+        const q = (req.query.q || '').trim();
+        if (!q || q.length < 2) {
+            return res.json({ success: true, data: { products: [] } });
+        }
+        const limit = Math.min(parseInt(req.query.limit, 10) || 10, 20);
+        const products = await Product.search(q).limit(limit);
+        return res.json({ success: true, data: { products } });
+    } catch (error) {
+        console.error('Search products error:', error);
+        return res.status(500).json({ success: false, message: 'Search failed' });
+    }
+};
+
 // @desc    Get new arrival products
 // @access  Public
 const getNewArrivalProducts = async (req, res) => {
@@ -602,6 +619,7 @@ const deleteProduct = async (req, res) => {
 module.exports = {
     getProducts,
     getActiveProducts,
+    searchProductsPublic,
     getNewArrivalProducts,
     getFeaturedProducts,
     getProductsByCategory,

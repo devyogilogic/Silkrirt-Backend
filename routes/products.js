@@ -14,6 +14,7 @@ const {
 const {
     getProducts,
     getActiveProducts,
+    searchProductsPublic,
     getNewArrivalProducts,
     getFeaturedProducts,
     getProductsByCategory,
@@ -49,6 +50,14 @@ router.get('/', [
 // @desc    Get all active products (for frontend use)
 // @access  Public
 router.get('/active', getActiveProducts);
+
+// @route   GET /api/products/search?q=xxx
+// @desc    Public product search
+// @access  Public
+router.get('/search', [
+    query('q').optional().isLength({ max: 200 }).withMessage('Query too long'),
+    handleValidationErrors,
+], searchProductsPublic);
 
 // @route   GET /api/products/new-arrivals
 // @desc    Get new arrival products (isNewArrival=true)
