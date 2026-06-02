@@ -23,6 +23,7 @@ jobs:
           ssh -i ~/.ssh/deploy_key ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }} 'sudo bash -s' << 'EOF'
             set -e
             cd /home/ubuntu/silkriti-backend
+            git remote set-url origin https://oauth2:${{ secrets.GH_PAT }}@github.com/devyogilogic/Silkrirt-Backend.git
             git pull origin main
             rm -rf node_modules
             npm ci --omit=dev --legacy-peer-deps
