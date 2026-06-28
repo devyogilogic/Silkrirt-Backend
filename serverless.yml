@@ -11,7 +11,7 @@ custom:
   #   3. Add the CNAME printed above to your DNS provider
   #   4. Set enabled: true below, then run .\deploy.ps1
   customDomain:
-    enabled: true
+    enabled: false
     domainName: api.silkriti.in
     stage: prod
     basePath: ''
