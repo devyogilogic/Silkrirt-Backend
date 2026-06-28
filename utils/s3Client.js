@@ -1,6 +1,11 @@
 const { S3Client, PutObjectCommand, DeleteObjectCommand } = require('@aws-sdk/client-s3');
 
 function isS3Enabled() {
+    // In Lambda, AWS_REGION + credentials are provided automatically by the runtime;
+    // only AWS_BUCKET needs to be explicitly configured.
+    if (process.env.AWS_LAMBDA_FUNCTION_NAME) {
+        return Boolean(process.env.AWS_BUCKET);
+    }
     return Boolean(
         process.env.AWS_BUCKET &&
         process.env.AWS_REGION &&
@@ -13,13 +18,18 @@ let client;
 function getS3() {
     if (!isS3Enabled()) return null;
     if (!client) {
-        client = new S3Client({
-            region: process.env.AWS_REGION,
-            credentials: {
+        const config = { region: process.env.AWS_REGION };
+        // In Lambda, the SDK automatically uses the IAM execution role.
+        // Passing explicit credentials would miss the session token and break auth.
+        if (!process.env.AWS_LAMBDA_FUNCTION_NAME &&
+            process.env.AWS_ACCESS_KEY_ID &&
+            process.env.AWS_SECRET_ACCESS_KEY) {
+            config.credentials = {
                 accessKeyId: process.env.AWS_ACCESS_KEY_ID,
                 secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
-            },
-        });
+            };
+        }
+        client = new S3Client(config);
     }
     return client;
 }
@@ -32,11 +42,6 @@ function publicUrlForKey(key) {
     return `https://${bucket}.s3.${region}.amazonaws.com/${key}`;
 }
 
-/**
- * @param {Buffer} body
- * @param {string} key - e.g. products/abc.webp
- * @param {string} contentType
- */
 async function uploadBuffer(key, body, contentType) {
     const s3 = getS3();
     if (!s3) throw new Error('S3 is not configured');
@@ -49,9 +54,6 @@ async function uploadBuffer(key, body, contentType) {
     return publicUrlForKey(key);
 }
 
-/**
- * @param {string} storedUrl - full URL or legacy /uploads/ path
- */
 async function deleteStoredObject(storedUrl) {
     if (!storedUrl || typeof storedUrl !== 'string') return;
     const base = (process.env.AWS_PUBLIC_BASE_URL || '').replace(/\/$/, '');

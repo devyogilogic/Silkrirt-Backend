@@ -1,0 +1,79 @@
+service: silkriti-backend
+
+frameworkVersion: '3'
+
+custom:
+  # Custom domain — keeps api.silkriti.in working, zero frontend changes needed.
+  #
+  # SETUP (one-time, before enabling):
+  #   1. Issue an ACM certificate for api.silkriti.in in ap-south-1
+  #   2. Run:  .\deploy.ps1 -CreateDomain
+  #   3. Add the CNAME printed above to your DNS provider
+  #   4. Set enabled: true below, then run .\deploy.ps1
+  customDomain:
+    enabled: true
+    domainName: api.silkriti.in
+    stage: prod
+    basePath: ''
+    endpointType: regional
+    securityPolicy: tls_1_2
+    apiType: http
+    createRoute53Record: true
+
+provider:
+  name: aws
+  runtime: nodejs20.x
+  region: ${opt:region, 'ap-south-1'}
+  stage: ${opt:stage, 'prod'}
+  timeout: 29
+  memorySize: 512
+
+  environment:
+    NODE_ENV: production
+    MONGODB_URI: ${env:MONGODB_URI}
+    JWT_SECRET: ${env:JWT_SECRET}
+    JWT_EXPIRES_IN: ${env:JWT_EXPIRES_IN, '24h'}
+    AWS_BUCKET: ${env:AWS_BUCKET}
+    AWS_PUBLIC_BASE_URL: ${env:AWS_PUBLIC_BASE_URL, ''}
+    MAX_FILE_SIZE: ${env:MAX_FILE_SIZE, '1048576'}
+    BLOG_MAX_FILE_SIZE: ${env:BLOG_MAX_FILE_SIZE, '2097152'}
+    MAX_FILES_PER_PRODUCT: ${env:MAX_FILES_PER_PRODUCT, '5'}
+
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+            - s3:PutObject
+            - s3:DeleteObject
+            - s3:GetObject
+          Resource: arn:aws:s3:::${env:AWS_BUCKET}/*
+
+functions:
+  api:
+    handler: lambda.handler
+    description: Silkriti backend API
+    events:
+      - httpApi:
+          path: /{proxy+}
+          method: ANY
+      - httpApi:
+          path: /
+          method: ANY
+
+package:
+  patterns:
+    - '!uploads/**'
+    - '!.git/**'
+    - '!.github/**'
+    - '!nginx/**'
+    - '!scripts/**'
+    - '!ecosystem.config.js'
+    - '!.env'
+    - '!.env.*'
+    - '!*.md'
+    - '!node_modules/.cache/**'
+
+plugins:
+  - serverless-domain-manager
+  - serverless-offline

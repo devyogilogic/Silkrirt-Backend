@@ -4,8 +4,10 @@ const fs = require('fs');
 const crypto = require('crypto');
 const { isS3Enabled, uploadBuffer, deleteStoredObject } = require('../utils/s3Client');
 
+const IS_LAMBDA = Boolean(process.env.AWS_LAMBDA_FUNCTION_NAME);
+
 const uploadDir = process.env.UPLOAD_PATH || './uploads';
-if (!fs.existsSync(uploadDir)) {
+if (!IS_LAMBDA && !fs.existsSync(uploadDir)) {
     fs.mkdirSync(uploadDir, { recursive: true });
 }
 
@@ -50,6 +52,9 @@ async function persistWebpBuffer(buffer, originalName, mimetype, folder) {
     const key = `${folder}/${Date.now()}-${crypto.randomBytes(8).toString('hex')}${ext}`;
     if (isS3Enabled()) {
         return uploadBuffer(key, buffer, mimetype || 'image/webp');
+    }
+    if (IS_LAMBDA) {
+        throw new Error('AWS_BUCKET must be configured for file uploads in Lambda');
     }
     const typeDir = path.join(uploadDir, folder);
     if (!fs.existsSync(typeDir)) fs.mkdirSync(typeDir, { recursive: true });
@@ -200,19 +205,6 @@ const deleteFiles = (filePaths) => {
 const blogImageMime = new Set(['image/webp', 'image/jpeg', 'image/jpg', 'image/png']);
 const blogMaxSize = parseInt(process.env.BLOG_MAX_FILE_SIZE, 10) || 2097152;
 
-const blogStorage = multer.diskStorage({
-    destination(req, file, cb) {
-        const typeDir = path.join(uploadDir, 'blogs');
-        if (!fs.existsSync(typeDir)) fs.mkdirSync(typeDir, { recursive: true });
-        cb(null, typeDir);
-    },
-    filename(req, file, cb) {
-        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
-        const ext = path.extname(file.originalname) || '.webp';
-        cb(null, `blog-${uniqueSuffix}${ext}`);
-    },
-});
-
 const blogFileFilter = (req, file, cb) => {
     if (!blogImageMime.has(file.mimetype)) {
         return cb(new Error('Only WebP, JPEG, or PNG images are allowed'), false);
@@ -220,57 +212,88 @@ const blogFileFilter = (req, file, cb) => {
     cb(null, true);
 };
 
+// Use memory storage in Lambda or when S3 is configured; otherwise disk.
+const USE_S3_FOR_BLOGS = IS_LAMBDA || isS3Enabled();
+
+const blogStorage = USE_S3_FOR_BLOGS
+    ? multer.memoryStorage()
+    : multer.diskStorage({
+        destination(req, file, cb) {
+            const typeDir = path.join(uploadDir, 'blogs');
+            if (!fs.existsSync(typeDir)) fs.mkdirSync(typeDir, { recursive: true });
+            cb(null, typeDir);
+        },
+        filename(req, file, cb) {
+            const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+            const ext = path.extname(file.originalname) || '.webp';
+            cb(null, `blog-${uniqueSuffix}${ext}`);
+        },
+    });
+
 const uploadBlogMulter = multer({
     storage: blogStorage,
     fileFilter: blogFileFilter,
     limits: { fileSize: blogMaxSize, files: 1 },
 });
 
+function handleBlogMulterError(err, res) {
+    if (err instanceof multer.MulterError && err.code === 'LIMIT_FILE_SIZE') {
+        return res.status(400).json({
+            success: false,
+            message: `File too large. Maximum ${blogMaxSize / 1024 / 1024}MB allowed.`,
+        });
+    }
+    return res.status(400).json({ success: false, message: err.message });
+}
+
 const uploadBlogSingle = (req, res, next) => {
-    uploadBlogMulter.single('image')(req, res, (err) => {
-        if (err) {
-            if (err instanceof multer.MulterError && err.code === 'LIMIT_FILE_SIZE') {
-                return res.status(400).json({
-                    success: false,
-                    message: `File too large. Maximum ${blogMaxSize / 1024 / 1024}MB allowed.`,
-                });
+    uploadBlogMulter.single('image')(req, res, async (err) => {
+        if (err) return handleBlogMulterError(err, res);
+        try {
+            if (req.file) {
+                req.fileUrl = USE_S3_FOR_BLOGS
+                    ? await persistWebpBuffer(req.file.buffer, req.file.originalname, req.file.mimetype, 'blogs')
+                    : `/uploads/blogs/${req.file.filename}`;
             }
-            return res.status(400).json({ success: false, message: err.message });
+            next();
+        } catch (e) {
+            console.error(e);
+            res.status(500).json({ success: false, message: 'Upload failed' });
         }
-        if (req.file) req.fileUrl = `/uploads/blogs/${req.file.filename}`;
-        next();
     });
 };
 
 const uploadBlogCover = (req, res, next) => {
-    uploadBlogMulter.single('cover')(req, res, (err) => {
-        if (err) {
-            if (err instanceof multer.MulterError && err.code === 'LIMIT_FILE_SIZE') {
-                return res.status(400).json({
-                    success: false,
-                    message: `File too large. Maximum ${blogMaxSize / 1024 / 1024}MB allowed.`,
-                });
+    uploadBlogMulter.single('cover')(req, res, async (err) => {
+        if (err) return handleBlogMulterError(err, res);
+        try {
+            if (req.file) {
+                req.fileUrl = USE_S3_FOR_BLOGS
+                    ? await persistWebpBuffer(req.file.buffer, req.file.originalname, req.file.mimetype, 'blogs')
+                    : `/uploads/blogs/${req.file.filename}`;
             }
-            return res.status(400).json({ success: false, message: err.message });
+            next();
+        } catch (e) {
+            console.error(e);
+            res.status(500).json({ success: false, message: 'Upload failed' });
         }
-        if (req.file) req.fileUrl = `/uploads/blogs/${req.file.filename}`;
-        next();
     });
 };
 
 const uploadTestimonialAvatar = (req, res, next) => {
-    uploadBlogMulter.single('avatar')(req, res, (err) => {
-        if (err) {
-            if (err instanceof multer.MulterError && err.code === 'LIMIT_FILE_SIZE') {
-                return res.status(400).json({
-                    success: false,
-                    message: `File too large. Maximum ${blogMaxSize / 1024 / 1024}MB allowed.`,
-                });
+    uploadBlogMulter.single('avatar')(req, res, async (err) => {
+        if (err) return handleBlogMulterError(err, res);
+        try {
+            if (req.file) {
+                req.fileUrl = USE_S3_FOR_BLOGS
+                    ? await persistWebpBuffer(req.file.buffer, req.file.originalname, req.file.mimetype, 'testimonials')
+                    : `/uploads/blogs/${req.file.filename}`;
             }
-            return res.status(400).json({ success: false, message: err.message });
+            next();
+        } catch (e) {
+            console.error(e);
+            res.status(500).json({ success: false, message: 'Upload failed' });
         }
-        if (req.file) req.fileUrl = `/uploads/blogs/${req.file.filename}`;
-        next();
     });
 };
 
